@@ -1,0 +1,21 @@
+# Environment
+.env
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Logs & local state
+logs/
+*.log
+
+# Reports (keep benchmarks/)
+reports/validation_*.json
+!reports/benchmarks/
+
+# OS
+.DS_Store
