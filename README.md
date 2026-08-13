@@ -62,6 +62,8 @@ Scores upcoming lineups and POSTs to the `update_result_predictions` Edge Functi
 python batch/batch_predict_and_update.py --all-upcoming
 ```
 
+Megan skill **`competition-predictor-batch`** runs that same script. Clone this repo to `~/ironinsights-predictor`, add `.env` + `venv`, and the Mac worker in [`megan-agent-openclaw`](https://github.com/YannikBauer1/megan-agent-openclaw) will pick it up. Incremental cursor: `~/.openclaw/workspace/state/competition_predictor_batch.json`. Megan does **not** run the old auto-improve loop.
+
 ## Tests
 
 ```bash
