@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .data import DIVISIONS, Contest
+from .data import DIVISIONS, Contest, age_number
 from .models import Elo
 
 FEATURES = [
@@ -41,7 +41,23 @@ FEATURES = [
     # contest-context interactions
     "oly_x_base", "oly_x_top3", "oly_x_champ", "oly_x_rookie",
     "mas_x_base", "mas_x_masters_only",
-] + [f"base_x_{c}" for c in DIVISIONS]
+] + [f"base_x_{c}" for c in DIVISIONS] + [
+    # Olympia qualification (the Open Olympia of this division, also used in masters classes as a strength signal):
+    # top 3 at the latest Olympia, or an Open-age pro win since it. Masters Olympia qualification is not modelled.
+    "qualified", "qual_x_t3",       # already qualified; and that, at a regular (tier 3) show
+    "near_oly", "near_oly_x_qual", "near_oly_x_top6",   # within 8 weeks before the next Olympia (assumed a year after the last)
+    # head to head against this lineup, pool results of the last 3 years, recency weighted
+    "h2h_net",                      # (wins - losses) / (1 + meetings) against everyone in this lineup
+    "h2h_meet",                     # log(1 + meetings) with this lineup
+    "h2h_vs_top",                   # net record (-1..1) against their highest-rated rival in this lineup
+    # masters age groups
+    "agegrp_shows",                 # log(1 + earlier placed contests in this exact age group)
+    "agegrp_wins",                  # log(1 + earlier wins in this exact age group)
+    "agegrp_last_pct",              # percentile of their latest result in this age group
+    "agegrp_new",                   # masters class, first time in this age group but has history in the division
+    "age_moved_up",                 # masters class above every bracket they did before (just aged into it)
+]
+H2H_DAYS, H2H_TAU = 3 * 365, 730.0
 
 
 @dataclass
@@ -56,6 +72,7 @@ class HistoryEntry:
     n: int
     avg_jp: float = math.nan        # average counted-judge placing at prejudging
     margin: float = math.nan        # for a winner: runner-up minus winner average placing
+    age: str = "Open"               # the class's age group
 
 
 def judge_placings(c: Contest) -> np.ndarray:
@@ -83,14 +100,19 @@ class FeatureRecorder:
         self.names = FEATURES + [f"b_{n}" for n in self.extra]
         self.elo = Elo()
         self.hist: dict = defaultdict(list)      # person -> [HistoryEntry]
+        self.meetings: dict = defaultdict(list)  # (pool, person) -> [(date, {person: place})] of placed contests
+        self.olympias: dict = defaultdict(list)  # pool -> dates of its Open-age Olympias
         self.snap: dict = {}                     # division_id -> X
 
     def predict(self, c: Contest):
         theta = np.asarray(self.base.predict(c), float)
         X = np.zeros((len(c.persons), len(self.names)))
+        by_rating = np.argsort(-theta, kind="stable")
         for i, p in enumerate(c.persons):
             f = self._features(p, c, theta[i])
             f["home"] = float(bool(c.event_country) and c.countries[i] == c.event_country)
+            rival = c.persons[by_rating[1] if by_rating[0] == i else by_rating[0]] if len(theta) > 1 else None
+            f.update(self._head_to_head(p, c, rival))
             X[i, :len(FEATURES)] = [f[k] for k in FEATURES]
         for j, m in enumerate(self.extra.values()):
             X[:, len(FEATURES) + j] = m.predict(c)
@@ -117,7 +139,34 @@ class FeatureRecorder:
                 margin = a2 - a1
         for p, pl, a in zip(c.persons, c.places, ajp):
             self.hist[p].append(HistoryEntry(c.date, c.pool, c.comp, c.tier, c.is_open_age, pl, n, a,
-                                    margin if pl == 1 else math.nan))
+                                    margin if pl == 1 else math.nan, c.age))
+        placed = {p: pl for p, pl in zip(c.persons, c.places) if not math.isnan(pl)}
+        for p in placed:
+            self.meetings[(c.pool, p)].append((c.date, placed))
+        if c.tier == "O" and c.is_open_age:
+            self.olympias[c.pool].append(c.date)
+
+    def _head_to_head(self, p, c: Contest, rival) -> dict:
+        """Record against this lineup, and against `rival` (the highest-rated other entrant)."""
+        field = set(c.persons) - {p}
+        net = meet = vs_top = top_meet = 0.0
+        for d, places in self.meetings[(c.pool, p)]:
+            days_ago = (c.date - d).astype(int)
+            if days_ago > H2H_DAYS:
+                continue
+            w = math.exp(-days_ago / H2H_TAU)
+            mine = places[p]
+            for q in field & places.keys():
+                if places[q] == mine:
+                    continue
+                s = 1.0 if mine < places[q] else -1.0
+                net += w * s
+                meet += w
+                if q == rival:
+                    vs_top += w * s
+                    top_meet += w
+        return dict(h2h_net=net / (1 + meet), h2h_meet=math.log1p(meet),
+                    h2h_vs_top=vs_top / top_meet if top_meet else 0.0)
 
     def _features(self, p, c: Contest, base) -> dict:
         h = self.hist[p]
@@ -177,4 +226,37 @@ class FeatureRecorder:
         f["mas_x_base"], f["mas_x_masters_only"] = mas * base, mas * f["masters_only"]
         if c.cat in DIVISIONS:
             f[f"base_x_{c.cat}"] = base
+        f.update(self._qualification(c, placed_pool, f["olympia_last_top6"]))
+        f.update(self._age_group(c, pool_rows, placed_pool))
+        return f
+
+    def _qualification(self, c: Contest, placed_pool, top6_last_olympia: float) -> dict:
+        f: dict = {}
+        past = [d for d in self.olympias[c.pool] if d < c.date]
+        if c.enh != "Open" or not past:
+            return f
+        last_oly = past[-1]
+        top3_there = any(r.tier == "O" and r.date == last_oly and r.place <= 3 for r in placed_pool)
+        won_since = any(r.place == 1 and r.open_age and r.tier in ("O", "2", "3") and r.date > last_oly
+                        for r in placed_pool)
+        f["qualified"] = float(top3_there or won_since)
+        f["qual_x_t3"] = f["qualified"] * float(c.tier == "3")
+        days_to = (last_oly + np.timedelta64(365, "D") - c.date).astype(int)
+        f["near_oly"] = float(c.tier != "O" and 0 <= days_to <= 56)
+        f["near_oly_x_qual"] = f["near_oly"] * f["qualified"]
+        f["near_oly_x_top6"] = f["near_oly"] * top6_last_olympia
+        return f
+
+    def _age_group(self, c: Contest, pool_rows, placed_pool) -> dict:
+        f: dict = {}
+        if c.is_open_age:
+            return f
+        group = [r for r in placed_pool if r.age == c.age]
+        f["agegrp_shows"] = math.log1p(len(group))
+        f["agegrp_wins"] = math.log1p(sum(1 for r in group if r.place == 1))
+        if group:
+            f["agegrp_last_pct"] = placing_percentile(group[-1])
+        f["agegrp_new"] = float(not group and bool(pool_rows))
+        brackets_before = [age_number(r.age) for r in pool_rows if not r.open_age]
+        f["age_moved_up"] = float(bool(brackets_before) and age_number(c.age) > max(brackets_before))
         return f

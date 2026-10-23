@@ -23,8 +23,8 @@ READ ONLY transaction, so Postgres itself refuses any write. Nothing in v2 write
 ## Run
 
 ```bash
-.venv/bin/python run_final.py        # train on everything, write output/*.json (~5 min); --today YYYY-MM-DD to pin the date
-.venv/bin/python walk.py             # walk 2018 to now with the final config -> data/walk.pkl (~4 min)
+.venv/bin/python run_final.py        # train on everything, write output/*.json (~7 min); --today YYYY-MM-DD to pin the date
+.venv/bin/python walk.py             # walk 2018 to now with the final config -> data/walk.pkl (~6 min)
 .venv/bin/python backtest_final.py   # rolling 2024-2026 backtest, calibration tables -> data/final_test_preds.pkl
 .venv/bin/python case_studies.py     # v1 vs v2 on 2026, Olympia 2026 pre-show predictions
 .venv/bin/python ladder.py           # every model step on the same test divisions
@@ -48,13 +48,13 @@ bbpredict/
   data.py       snapshot -> chronological contests; rating pools
   evaluate.py   leak-free walk-forward runner and metrics
   models.py     baselines: uniform, recent placings, multiplayer Elo, Weng-Lin
-  plfit.py      time-weighted Plackett-Luce, MAP refit per show date (forward or reverse)
-  features.py   stage-2 features recorded during the walk (status, layoffs, switches, ...)
+  plfit.py      time-weighted Plackett-Luce, MAP refit per show date (forward or reverse, log-domain likelihood)
+  features.py   stage-2 features recorded during the walk (status, layoffs, switches, age groups, head to head, ...)
   stage2.py     conditional logit (Plackett-Luce) layer
-  blend.py      final stage 2: logit + LightGBM ranker, split Open-age / Masters
-  final.py      the chosen configuration
+  blend.py      final stage 2: logit + LightGBM ranker, split Open-age / Masters (masters get extra inputs)
+  final.py      the chosen configuration: recorder() (eight rating views) and make_blend()
   pipeline.py   replay history, predict a lineup, power ranking
   montecarlo.py placing probabilities by simulation
-experiments/    the exploration scripts behind REPORT.md
-tests/          leakage, likelihood gradient, whole-lineup scoring, judge count, probability sums
+experiments/    the exploration scripts behind REPORT.md (round 1 and round 2, see its README)
+tests/          leakage, likelihood gradient and stability, whole-lineup scoring, new features, judge count, probability sums
 ```

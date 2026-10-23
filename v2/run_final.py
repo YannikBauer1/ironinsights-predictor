@@ -17,10 +17,9 @@ from pathlib import Path
 
 import numpy as np
 
-from bbpredict.blend import SplitBlend
 from bbpredict.data import DIVISIONS, cached_contests
 from bbpredict.evaluate import walk_forward
-from bbpredict.final import recorder
+from bbpredict.final import make_blend, recorder
 from bbpredict.pipeline import predict_contest, rank, ranking_field
 
 OUT = Path("output")
@@ -48,7 +47,7 @@ def main():
                 if (f := ranking_field(rec, cs, cat, str(d))) is not None:
                     fields[(d, cat)] = f
     print("replayed", len(preds), "divisions in", round(time.time() - t), "s", flush=True)
-    blend = SplitBlend(rec.names).fit([(rec.snap[p.contest.division_id], p.contest) for p in preds])
+    blend = make_blend(rec.names).fit([(rec.snap[p.contest.division_id], p.contest) for p in preds])
 
     rankings = {}
     for cat in DIVISIONS:

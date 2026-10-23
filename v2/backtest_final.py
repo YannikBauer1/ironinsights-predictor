@@ -7,9 +7,9 @@ import pickle
 
 import numpy as np
 
-from bbpredict.blend import SplitBlend
 from bbpredict.data import DIVISIONS
 from bbpredict.evaluate import Prediction, calibration_table, fmt, summarize
+from bbpredict.final import make_blend
 from bbpredict.montecarlo import place_probabilities
 
 SLICES = {
@@ -27,7 +27,7 @@ def rolling_predictions(preds, snap, names, years=(2024, 2025, 2026)):
     for year in years:
         lo, hi = np.datetime64(f"{year}-01-01"), np.datetime64(f"{year + 1}-01-01")
         train = [(snap[p.contest.division_id], p.contest) for p in preds if p.contest.date < lo]
-        model = SplitBlend(names).fit(train)
+        model = make_blend(names).fit(train)
         out += [Prediction(p.contest, model.utility(snap[p.contest.division_id], p.contest))
                 for p in preds if lo <= p.contest.date < hi]
         print(year, "trained on", len(train), "divisions", flush=True)

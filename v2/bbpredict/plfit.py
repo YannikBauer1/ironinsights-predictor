@@ -61,23 +61,42 @@ def stack(parts: list[tuple[Encoded, float]]) -> Stacked:
     return Stacked(**{k: np.concatenate(v) for k, v in cols.items()})
 
 
+def _running_logsumexp(x: np.ndarray, contest: np.ndarray, reverse: bool = False) -> np.ndarray:
+    """log(sum(exp(x))) over each contest so far (from its start, or from its end when reverse).
+
+    One ufunc pass: each contest is lifted by a large offset, so the running sum carried in from the
+    contests before it is below exp(-60) of its own values and drops out; nothing is subtracted, so
+    tiny sums are never lost to cancellation.
+    """
+    finite = x[np.isfinite(x)]
+    if finite.size == 0:
+        return np.full(len(x), -np.inf)
+    gap = finite.max() - finite.min() + 60.0
+    order = contest[::-1] if reverse else contest
+    offset = ((order.max() - order) if reverse else order) * gap
+    acc = np.logaddexp.accumulate((x[::-1] if reverse else x) + offset) - offset
+    return acc[::-1] if reverse else acc
+
+
 def neg_loglik(theta: np.ndarray, s: Stacked, lam: float, prior: np.ndarray):
     """Weighted negative PL log-likelihood of every stacked contest plus an L2 pull towards `prior`.
 
     Position k picks its athlete out of everyone at or after its tie group start (Breslow ties).
-    Returns (value, gradient with respect to theta).
+    All sums run in the log domain per contest, so neither far-apart contests nor a wide spread
+    inside one contest can underflow. Returns (value, gradient with respect to theta).
     """
     v = s.sign * theta[s.ids]
-    vmax = v.max()
-    e = np.exp(v - vmax)
-    tail = np.concatenate([np.cumsum(e[::-1])[::-1], [0.0]])     # sum of e from a position to the end
-    denom = tail[s.first] - tail[s.seg_end]
+    contest = np.cumsum(np.r_[True, s.seg_start[1:] != s.seg_start[:-1]]) - 1
+    log_denom = _running_logsumexp(v, contest, reverse=True)[s.first]   # log sum over each choice set
     t = s.term
-    ll = np.sum(s.weight[t] * (v[t] - vmax - np.log(denom[t])))
-    a = np.bincount(s.first[t], weights=s.weight[t] / denom[t], minlength=len(v))
-    cum = np.concatenate([[0.0], np.cumsum(a)])
-    exposure = cum[1:] - cum[s.seg_start]       # sum of w/denom over the terms whose choice set holds this position
-    grad_v = s.weight * t - e * exposure
+    ll = np.sum(s.weight[t] * (v[t] - log_denom[t]))
+    # d ll / d v_j = w_j [j is a pick] - sum over the picks k whose choice set holds j of w_k exp(v_j - log_denom_k).
+    # Picks of one tie group share their choice set and weight, so each group adds count * w / denom at its start.
+    picks_at = np.bincount(s.first[t], minlength=len(v))
+    starts = np.flatnonzero(picks_at)
+    pick = np.full(len(v), -np.inf)
+    pick[starts] = np.log(picks_at[starts] * s.weight[starts]) - log_denom[starts]
+    grad_v = s.weight * t - np.exp(v + _running_logsumexp(pick, contest))
     g = np.bincount(s.ids, weights=s.sign * grad_v, minlength=len(theta))
     d = theta - prior
     return -ll + 0.5 * lam * d @ d, -g + lam * d

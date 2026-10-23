@@ -40,7 +40,12 @@ class Stage2:
             val, g = neg_loglik(Z @ beta, s, 0.0, zero)
             return val + 0.5 * self.l2 * beta @ beta, Z.T @ g + self.l2 * beta
 
-        self.beta = minimize(f, np.zeros(Z.shape[1]), jac=True, method="L-BFGS-B", options=dict(maxiter=2000)).x
+        res = minimize(f, np.zeros(Z.shape[1]), jac=True, method="L-BFGS-B", options=dict(maxiter=2000))
+        # A non-finite result means the likelihood broke down: refuse it rather than predict from zeros.
+        # A finite stop short of convergence (line search or iteration limit) still beats the start, so it passes.
+        if not (np.isfinite(res.fun) and np.isfinite(res.x).all()):
+            raise RuntimeError(f"stage-2 logit fit failed: {res.message}")
+        self.beta = res.x
         return self
 
     def utility(self, X):

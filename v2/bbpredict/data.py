@@ -132,6 +132,19 @@ def default_pool(c: Contest) -> str:
     return c.pool
 
 
+def age_number(age: str) -> int:
+    """Masters bracket as a number (35, 40, ... 90); 'Masters' without a bracket counts as 40; Open is 0."""
+    if age == "Open":
+        return 0
+    digits = "".join(ch for ch in age if ch.isdigit())
+    return int(digits) if digits else 40
+
+
+def age_group_pool(c: Contest) -> str:
+    """Pool per masters age group: 40+ and 50+ of a division are rated apart, Open stays Open."""
+    return f"{c.pool}|{c.age}"
+
+
 def masters_split_pool(c: Contest) -> str:
     """Alternative pool that keeps masters classes apart from the Open class of the same division."""
     return f"{c.pool}|{'o' if c.is_open_age else 'm'}"
