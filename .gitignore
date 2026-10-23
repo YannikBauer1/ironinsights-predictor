@@ -19,3 +19,7 @@ reports/validation_*.json
 
 # OS
 .DS_Store
+
+# v2 local data snapshot, caches and outputs
+v2/data/
+v2/output/
