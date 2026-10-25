@@ -23,7 +23,7 @@ Against the v1 production predictor on the 259 divisions of 2026 that v1 scored 
 | predicted favourite wins | 37.8% | **54.4%** |
 | top-3 overlap | 62.5% | **73.2%** |
 | Spearman | 0.40 | **0.69** |
-| winner log-loss, 79 divisions where v1 stored a win % | 1.503 | **1.465** |
+| winner log-loss, 79 divisions where v1 stored a win % | 1.503 | **1.470** |
 
 Win percentages are close to honest for underdogs and outsiders: athletes given 10 to 20% won
 14.3% of the time (predicted 14.3%). **Favourites run a few points high:** 70 to 80% won 67.7%
@@ -139,6 +139,11 @@ Inputs for both layers besides the ratings:
 **Both layers also get (round 3)** time away: years since the athlete's last show in any division
 and in this one, and their base rating scaled by how stale it is. **The masters layer also gets**
 travel: the athlete's country differs from the event's, and a non-US athlete at a show in the USA.
+
+**The reigning Olympia champion** gets a fixed +0.5 on top of the Open-age layer's strength while
+nobody has beaten them since that Olympia (`final.CHAMPION_BONUS`, chosen and tested in "The reigning
+champion" under Power ranking). It is set, not fitted: learned from the data the edge is smaller and
+would not keep an unbeaten champion first.
 
 An athlete with no country on record counts as being from the event's country. Countries are filled in
 after the fact, mostly for athletes who became notable, so "unknown" must not be visible to the model.
@@ -420,42 +425,107 @@ in the other three, two of the three did.
 ## Power ranking
 
 **Method.** For each division, every pro who placed in an Open-age class of the open circuit in the
-last 18 months enters a hypothetical Olympia held today. Their stage-2 strength in that context
-orders the list. The percentage is their win probability if the top 30 met on that stage.
-Inactive athletes fade naturally: old results lose weight and long layoffs cost strength.
+last 30 months enters a hypothetical Olympia held today (in the USA). Their stage-2 strength in that
+context orders the list. The percentage is their win probability if the top 30 met on that stage.
+30 months keeps an athlete who sits out one whole Olympia season (18 months did not: Labrada,
+Kalecinski, Trevino and Truscott were missing). Athletes marked inactive in the database
+(`athlete.active = false`, exported read-only by `python3 dump.py inactive` to
+`data/inactive_athletes.json`) are left out of today's list and the one three months back, not out
+of past year ends. Each entry says how many months have passed since the last show; long layoffs
+already cost strength through the time-away inputs. There is no rule on top of the model: the
+reigning champion leads through the champion bonus (below).
 
-As of 2026-10-23 (win % in a hypothetical Olympia today):
+As of 2026-10-25 (win % in a hypothetical Olympia today; months away shown from 18 on). Every
+reigning Olympia champion is first:
 
 | Division | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
-| Men's Open | Nick Walker (31%) | Derek Lunsford (20%) | Samson Dauda (17%) | Hadi Choopan (10%) | Andrew Jacked (8%) |
-| Classic Physique | Niall Darwen (32%) | Mike Sommerfeld (24%) | Ramon Rocha Queiroz (18%) | Josema Muñoz (5%) | Terrence Ruffin (5%) |
-| 212 | Keone Pearson (53%) | Shaun Clarida (16%) | Lucas Garcia (14%) | Vitor Porto (4%) | Courage Opara (3%) |
-| Men's Physique | Ryan Terry (41%) | Ali Bilal (21%) | Kyron Holden (11%) | Erin Banks (7%) | Brandon Hendrickson (5%) |
-| Women's BB | Andrea Shaw (78%) | Ashley Jones (11%) | Angela Yeo (5%) | Leyvina Barros (3%) | Paula Ranta (1%) |
-| Women's Physique | Natalia Coelho (57%) | Sarah Villegas (19%) | Zama Benta (15%) | Brooke Walker (2%) | Brittany Herrera (1%) |
-| Figure | Lola Montez (45%) | Jessica Reyes Padilla (21%) | Denise Zwinger-Tynek (9%) | Rhea Gayle (8%) | Lena Ramsteiner (5%) |
-| Wellness | Eduarda Bezerra (46%) | Isabelle Nunes (22%) | Elisa Alcantara (13%) | Rayane Fogal (5%) | Leonida Ciobu (4%) |
-| Bikini | Maureen Blanquisco (26%) | Jasmine Gonzalez (21%) | Aimee Delgado (17%) | Lauralie Chapados (9%) | Ashlyn Little (5%) |
-| Fitness | Michelle Mensah (65%) | Jaclyn Baker (23%) | Taylor Learmont (5%) | Anna Fomina (2%) | Allison Kramer (1%) |
-| Fit Model | Shealynn Burnett (52%) | Gabriela Queiroz (22%) | Jane Jones (9%) | Liz Trampas (5%) | Carla Andrea Reyes Vargas (3%) |
-| Wheelchair | Blake Colleton (33%) | James Berger (26%) | Ephraim Gudgeon (14%) | Kevin Secundino (7%) | Rajesh John (5%) |
+| Men's Open | Nick Walker (42%) | Derek Lunsford (17%) | Samson Dauda (15%) | Hadi Choopan (9%) | Andrew Jacked (6%) |
+| Classic Physique | Niall Darwen (42%) | Mike Sommerfeld (20%) | Ramon Rocha Queiroz (15%) | Josema Muñoz (4%) | Terrence Ruffin (4%) |
+| 212 | Keone Pearson (64%) | Shaun Clarida (12%) | Lucas Garcia (11%) | Vitor Porto (3%) | Courage Opara (2%) |
+| Men's Physique | Ryan Terry (54%) | Ali Bilal (16%) | Kyron Holden (9%) | Erin Banks (6%) | Brandon Hendrickson (4%) |
+| Women's BB | Andrea Shaw (84%) | Ashley Jones (8%) | Angela Yeo (4%) | Leyvina Barros (2%) | Paula Ranta (0%) |
+| Women's Physique | Natalia Coelho (69%) | Sarah Villegas (13%) | Zama Benta (11%) | Brooke Walker (1%) | Brittany Herrera (1%) |
+| Figure | Lola Montez (56%) | Jessica Reyes Padilla (17%) | Denise Zwinger-Tynek (7%) | Rhea Gayle (6%) | Lena Ramsteiner (4%) |
+| Wellness | Eduarda Bezerra (58%) | Isabelle Nunes (17%) | Elisa Alcantara (11%) | Rayane Fogal (4%) | Leonida Ciobu (3%) |
+| Bikini | Jasmine Gonzalez (30%) | Maureen Blanquisco (23%) | Aimee Delgado (15%) | Lauralie Chapados (8%) | Ashlyn Little (5%) |
+| Fitness | Michelle Mensah (73%) | Jaclyn Baker (16%) | Taylor Learmont (4%) | Missy Truscott (3%, 24 months away) | Anna Fomina (2%) |
+| Fit Model | Shealynn Burnett (63%) | Gabriela Queiroz (17%) | Jane Jones (7%) | Liz Trampas (4%) | Carla Andrea Reyes Vargas (3%) |
+| Wheelchair | Blake Colleton (42%) | James Berger (20%) | Ephraim Gudgeon (11%) | Kevin Secundino (6%) | Karol Milewski (5%, 24 months away) |
 
-Full lists (top 40, with the rank three months earlier, last show and placing) are in
-`output/power_rankings.json`. Year-end top 10s since 2018 are in `output/ranking_history.json`.
+Back in the list through the longer window, within each top 15: Urs Kalecinski (Classic #7, 24
+months away), Helle Trevino (Women's BB #7, 24), Oleh Kryvyi (212 #12, 29), Diogo Montenegro
+(Men's Physique #13, 20), Hunter Labrada (Men's Open #15, 24). Gillon, Mattos and Bumstead are
+inactive in the database and not listed.
 
-**Sanity check.** Across Men's Open, Classic, 212, Men's Physique, Women's BB, Figure, Wellness
-and Bikini since 2018, the year-end #1 was that year's Olympia champion in 51 of 59 division-years
-(every Classic year, Gillon in Figure 2018 to 2024, Shaw in Women's BB since 2020, Mattos, Nunes
-and Bezerra in Wellness). The misses:
+Full lists (top 40, with months away, the rank three months earlier, last show and placing) are in
+`output/power_rankings.json`. Year-end top 10s since 2018 are in `output/ranking_history.json`:
+81 of the 83 year ends with a reigning champion have them first, and no list has two. The two exceptions are Heath above
+Curry (2019; Curry needed +0.50) and Grishina above Whitney Jones in Fitness (2018; Jones needed
++1.15). There was no Ms. Olympia in 2018 and 2019 and no Wellness Olympia before 2021. The year-end
+lists use the stage-2 layer trained through 2026, so they are a retrospective view, not what the
+model would have said live.
 
-* Men's Open: Heath ranked above Rhoden (2018) and Curry (2019), Choopan above Dauda (2024);
-* 212: Lewis above Elgargni (2019), Elgargni above Clarida (2020);
-* Gillon above Gayle (2025);
-* Bikini: Teixeira above Pecini (2019), Layug above Dorie (2021).
+### The reigning champion: a bonus for the winner, until beaten
 
-The year-end lists use the stage-2 layer trained through 2026, so they are a retrospective view,
-not what the model would have said live.
+Before this, the model weighed a whole career against one Olympia win and put an unbeaten champion
+second in 12 lists (Heath above Rhoden 2018 and Curry 2019, Choopan above Dauda 2024, Gillon above
+Gayle 2025, Blanquisco above Gonzalez in October 2026, ...). Now `features.champ_unbeaten` marks the
+athlete who won the division's latest Open-age Olympia, until the next one is held (at most two
+years, for a division whose Olympia lapsed), and whom nobody has placed above in an Open-age class
+since. A champion who skips the next Olympia stops being champion the day it is held. The Open-age layer adds a fixed **+0.5** to that athlete's
+strength (`final.CHAMPION_BONUS`), in show predictions and in the ranking alike. Only the winner gets
+it, and only while unbeaten.
+
+Why this shape (`experiments/champion_between_olympias.py`, open circuit, Open age, 250 champion
+seasons since 1965):
+
+| Between two Olympias the champion... | Seasons | Defended | Kept the title |
+|---|---|---|---|
+| did no other show | 150 | 109 | 68 (62%) |
+| competed and was never beaten | 68 | 65 | 53 (82%) |
+| was beaten at least once | 32 | 28 | 10 (36%) |
+
+* Being beaten is rare: 32 of 250 seasons (13%), almost all at the Arnold in March, mostly in Bikini
+  and Figure. Since 2010, 212, Classic and Women's Physique champions were never beaten in between.
+* A loss is a real warning: beaten champions kept the title 36% of the time, against 62% to 82%.
+* But a loss does not say who is better. Of the 28 beaten champions who defended, 10 kept the
+  title, 10 lost it to an athlete who had beaten them and 8 lost it to someone else. Of the 44
+  athletes who had beaten a champion and met them again at the Olympia, only 14 (32%) finished
+  above the champion again. So a beaten champion loses the bonus but not their rating: the loss
+  counts like any other result, and whether they drop depends on everything else the model knows.
+
+Tested options (`experiments/champion_weight.py`, `experiments/walk_olympia_weight.py`; Open age,
+rolling folds 2021-2023 (26 Olympias with an unbeaten champion on stage), then 2024-2026 (23);
+"favourite" = the unbeaten champion was favoured at the Olympia):
+
+| Option | log-loss 2021-23 | Favourite 2021-23 | log-loss 2024-26 | Favourite 2024-26 | Unbeaten champions, expected / actual wins 2024-26 |
+|---|---|---|---|---|---|
+| no bonus (round 3) | 1.5016 | 23/26 | 1.3694 | 21/23 | 21.9 / 23 |
+| learned champion inputs | 1.5018 | 23/26 | 1.3692 | 21/23 | 21.9 / 23 |
+| +0.25 for the unbeaten winner | 1.5013 | 25/26 | 1.3694 | 22/23 | 23.6 / 23 |
+| **+0.5 for the unbeaten winner** | 1.5015 | **26/26** | 1.3696 | **23/23** | 25.3 / 23 |
+| +0.5 for every champion, beaten too | 1.5017 | 26/26 | 1.3702 | 23/23 | 25.3 / 23 (beaten: 2.9 / 1) |
+| +1.2 for the unbeaten winner | n/a | n/a | 1.3718 | 23/23 | 29.4 / 23 |
+| Olympia counts 3x in the ratings | 1.5033 | 22/26 | 1.3736 | 21/23 | 21.9 / 23 |
+| Olympia counts 5x in the ratings | 1.5130 | 24/26 | 1.3851 | 21/23 | 22.0 / 23 |
+
+* Learned from the data, the unbeaten champion's extra edge is only about +0.3 (and a beaten
+  champion's about -0.1): the model already predicted them about right, so learning alone does not
+  keep them first.
+* A heavier Olympia in the ratings lifts every good Olympia placing, not only the winner's, and made
+  predictions worse. A bonus for beaten champions too overrated them.
+* +0.5 is the smallest bonus that kept every unbeaten champion first at the 49 Olympias tested. It
+  is not free: unbeaten champions now win a little less often than predicted (25.3 expected, 23
+  won in 2024-2026; 27.7 and 26 in 2021-2023), and log-loss moves by +0.0002 in 2024-2026 (-0.0001
+  in 2021-2023), both within noise. It covers 11 of the 12 lists above; +1.2 would cover Whitney
+  Jones too, at a clear cost.
+
+Full 2024-2026 backtest with the bonus against round 3: log-loss 1.280 to 1.280, favourite wins
+54.3% to 54.3%, top 3 and Spearman unchanged, calibration error 0.31 to 0.30 points. At the 34
+Olympias log-loss improved from 1.548 to 1.509, while one more favourite lost (Gayle, the unbeaten
+Figure champion, now favoured in 2026; Montez won). Against v1 on its 79 divisions with a stored
+win %, v2's log-loss moved from 1.465 to 1.470.
 
 ## What is not done
 

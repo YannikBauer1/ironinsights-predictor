@@ -36,8 +36,10 @@ HOLDOUT = np.timedelta64(365, "D")
 
 
 class Blend:
-    def __init__(self, names: list[str], columns=COLUMNS, iterations=600, w_lgbm=0.5, l2=1.0):
+    def __init__(self, names: list[str], columns=COLUMNS, iterations=600, w_lgbm=0.5, l2=1.0, champion_bonus=0.0):
         self.idx = [names.index(c) for c in columns]
+        self.champion_bonus = champion_bonus      # fixed, not fitted: added to the unbeaten champion's utility
+        self.champ_col = names.index("champ_unbeaten") if champion_bonus else None
         self.columns, self.iterations, self.w, self.l2 = columns, iterations, w_lgbm, l2
         self.logit = self.booster = None
         self.scale = self.temperature = 1.0
@@ -86,14 +88,15 @@ class Blend:
 
     def utility(self, X, c, field_size=None):
         a, b = self._raw(self.logit, self.booster, X, c, field_size)
-        return self.temperature * ((1 - self.w) * a + self.w * self.scale * b)
+        u = self.temperature * ((1 - self.w) * a + self.w * self.scale * b)
+        return u + self.champion_bonus * X[:, self.champ_col] if self.champ_col is not None else u
 
 
 class SplitBlend:
     """One Blend for Open-age classes and one for masters classes: the two judge and mix differently."""
 
-    def __init__(self, names: list[str], masters_columns=COLUMNS, **kw):
-        self.open = Blend(names, **kw)
+    def __init__(self, names: list[str], masters_columns=COLUMNS, champion_bonus=0.0, **kw):
+        self.open = Blend(names, champion_bonus=champion_bonus, **kw)   # the champion is the Open Olympia's
         self.masters = Blend(names, **dict(kw, columns=masters_columns))
 
     def fit(self, rows):

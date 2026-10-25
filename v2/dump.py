@@ -1,6 +1,9 @@
-"""Dump a flat, read-only snapshot of every pro result to data/results.csv.
+"""Dump a flat, read-only snapshot of every pro result to data/results.csv, and the athletes marked
+inactive (retired) to data/inactive_athletes.json.
 
 Only SELECTs go to the database (through ./dbq.sh, the linked Supabase project).
+usage: dump.py            both
+       dump.py inactive   only the inactive list (leaves the results snapshot as it is)
 """
 import csv
 import json
@@ -10,6 +13,8 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 OUT = HERE / "data" / "results.csv"
+INACTIVE = HERE / "data" / "inactive_athletes.json"
+INACTIVE_SQL = "select a.person_id, p.name_short as name from athlete a join person p on p.id = a.person_id where not a.active"
 
 SQL = """
 select r.id result_id, r.athlete_id, a.person_id, p.name person_slug, p.name_short person_name, p.sex,
@@ -51,6 +56,16 @@ def fetch(y0, y1):
     return json.loads(out.stdout)
 
 
+def dump_inactive():
+    """athlete.active is today's flag: fine for today's power ranking, never for backtests."""
+    out = subprocess.run(["./dbq.sh", INACTIVE_SQL], cwd=HERE, capture_output=True, text=True)
+    if out.returncode != 0:
+        sys.exit(f"inactive query failed:\n{out.stderr}")
+    rows = json.loads(out.stdout)
+    INACTIVE.write_text(json.dumps(rows, indent=1))
+    print("inactive athletes", len(rows), "->", INACTIVE, file=sys.stderr)
+
+
 def main():
     rows = []
     for y0, y1 in YEAR_CHUNKS:
@@ -65,4 +80,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] != ["inactive"]:
+        main()
+    dump_inactive()

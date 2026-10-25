@@ -13,6 +13,12 @@ from .plfit import TimeDecayPL
 # Elo view and the stage-2 tier context still treat them separately.
 TIER_W = {"O": 1.5, "MO": 2 / 3}
 PL = dict(tau=730, lam=0.3, reverse=True, rookie=-0.2, tier_w=TIER_W)
+# The reigning Olympia champion leads until someone beats them: +0.5 on their Open-age utility while
+# unbeaten. Learned from data the edge is about +0.3; 0.5 made every unbeaten champion the favourite at
+# the 49 Olympias of 2021-2026, with log-loss within noise, though unbeaten champions now win slightly
+# less often than predicted (experiments/champion_weight.py). A heavier Olympia in TIER_W also lifts the
+# runners-up and made predictions worse; a bonus for beaten champions too overrated them.
+CHAMPION_BONUS = 0.5
 
 
 def recorder() -> FeatureRecorder:
@@ -33,4 +39,4 @@ def recorder() -> FeatureRecorder:
 def make_blend(names: list[str]) -> SplitBlend:
     """The stage-2 ranking layer. Both layers also get time away (round 3); masters classes also get the
     age-group, head-to-head and qualification inputs (round 2) and travel (round 3)."""
-    return SplitBlend(names, columns=OPEN_COLUMNS, masters_columns=MASTERS_COLUMNS)
+    return SplitBlend(names, columns=OPEN_COLUMNS, masters_columns=MASTERS_COLUMNS, champion_bonus=CHAMPION_BONUS)

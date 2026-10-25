@@ -15,6 +15,7 @@ uv pip install --python .venv/bin/python -r requirements.txt
 
 ```bash
 python3 dump.py    # SELECT-only snapshot of every pro result into data/results.csv (~2 min)
+python3 dump.py inactive   # only the athletes marked inactive -> data/inactive_athletes.json (power ranking)
 ```
 
 `dbq.sh` runs one SELECT through the linked Supabase project (`supabase db query --linked`) inside a
@@ -38,7 +39,8 @@ Outputs:
 
 * `output/upcoming.json`: every lineup not judged yet, with win %, P(2nd), P(3rd), top 3 %, top 5 %,
   expected placing and predicted place per athlete.
-* `output/power_rankings.json`: top 40 per division, with the rank three months earlier.
+* `output/power_rankings.json`: top 40 per division (pro result in the last 30 months, inactive
+  athletes left out), with months since the last show and the rank three months earlier.
 * `output/ranking_history.json`: top 10 per division at every year end since 2018.
 
 ## Layout

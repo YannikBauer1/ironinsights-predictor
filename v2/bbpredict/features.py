@@ -65,8 +65,13 @@ FEATURES = [
     "stale_x_base",                 # base rating times min(years_away_pool, 5), so the model can discount old ratings
     "away",                         # athlete's country differs from the event's
     "foreign_at_us",                # athlete from outside the USA at a show in the USA
+    # the reigning champion: won the division's latest Open-age Olympia, until the next one (at most
+    # CHAMPION_DAYS, for a division whose Olympia lapsed). Neither is a learned input: final.CHAMPION_BONUS
+    # is added on top for the champion nobody has placed above in an Open-age class of the division since.
+    "reigning_champ", "champ_unbeaten",
 ]
 H2H_DAYS, H2H_TAU = 3 * 365, 730.0
+CHAMPION_DAYS = 730
 
 
 @dataclass
@@ -215,6 +220,12 @@ class FeatureRecorder:
             f["olympia_last_top3"] = float(last.place <= 3)
             f["olympia_champ"] = float(last.place == 1)
         f["olympia_ever_top3"] = float(any(r.place <= 3 for r in olympia))
+        past = [d for d in self.olympias[c.pool] if d < c.date]
+        if past and (c.date - max(past)).astype(int) <= CHAMPION_DAYS:
+            latest = max(past)
+            if any(r.date == latest and r.tier == "O" and r.open_age and r.place == 1 for r in placed_pool):
+                f["reigning_champ"] = 1.0
+                f["champ_unbeaten"] = float(all(r.place == 1 for r in placed_pool if r.open_age and r.date > latest))
         same = [r for r in pool_rows if r.comp == c.comp and (c.date - r.date).astype(int) <= 550]
         if same and not math.isnan(same[-1].place):
             f["defending_show"] = float(same[-1].place == 1)

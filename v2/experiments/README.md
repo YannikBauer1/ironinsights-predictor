@@ -59,3 +59,19 @@ PYTHONPATH=. .venv/bin/python experiments/before_after.py data/round2_final_test
 
 `round3_eval.py` lists every group and parameter setting that was tried. `round2_folds.py` now
 uses the current `final.make_blend`, so its output follows whatever `final.py` holds.
+
+## The reigning champion (final.CHAMPION_BONUS)
+
+```bash
+PYTHONPATH=. .venv/bin/python experiments/champion_between_olympias.py      # beaten between Olympias? kept the title?
+PYTHONPATH=. .venv/bin/python experiments/champion_rules.py data/r3_analysis_cand.pkl data/r3_final_test_preds.pkl
+PYTHONPATH=. .venv/bin/python experiments/champion_weight.py data/walk.pkl base learned base+0.25 base+0.5 base+1.0 base+0.5all
+PYTHONPATH=. .venv/bin/python experiments/champion_weight.py data/walk.pkl --years 2024,2025,2026 base base+0.5
+PYTHONPATH=. .venv/bin/python experiments/walk_olympia_weight.py 3 data/walk_oly3.pkl   # heavier Olympia (rejected)
+PYTHONPATH=. .venv/bin/python experiments/champion_weight.py data/walk_oly3.pkl base
+```
+
+The first writes `data/champion_seasons.pkl`, which `champion_rules.py` needs. `champion_rules.py` scored a
+ranking rule (champion first until beaten); it was replaced by the bonus inside the model.
+`champion_weight.py` adds its own champion inputs to the snapshot, so it also runs on a walk made
+before `champ_unbeaten` existed.

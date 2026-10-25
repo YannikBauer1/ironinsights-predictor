@@ -11,7 +11,7 @@ import numpy as np
 from .blend import SplitBlend
 from .data import Contest
 from .evaluate import softmax, walk_forward
-from .features import FeatureRecorder
+from .features import FEATURES, FeatureRecorder
 from .montecarlo import summary
 
 RANKING_FIELD = 30   # a hypothetical Olympia: the top 30 by strength share the win probability
@@ -44,19 +44,25 @@ class RankingField:
     last: dict
 
 
+ACTIVE_DAYS = 913   # 30 months: an athlete who skips one whole Olympia season stays in the list
+
+
 def ranking_field(rec: FeatureRecorder, contests: list[Contest], cat: str, date: str,
-                  active_days: int = 548) -> RankingField | None:
-    """Every open-circuit pro who placed in an Open class of `cat` in the last `active_days`,
-    entered into an Olympia on `date`. Features come from the recorder's state at that moment."""
+                  active_days: int = ACTIVE_DAYS, inactive: set | None = None) -> RankingField | None:
+    """Every open-circuit pro who placed in an Open class of `cat` in the last `active_days` and is not
+    marked inactive (retired), entered into an Olympia on `date`. Features come from the recorder's state
+    at that moment; how long ago they last competed is in each entry's `months_away`."""
     d = np.datetime64(date)
     lo = d - np.timedelta64(active_days, "D")
+    inactive = inactive or set()
     last: dict = {}
     for c in contests:
         if c.cat != cat or c.enh != "Open" or not c.is_open_age or not (lo <= c.date < d):
             continue
         for p, nm, pl, ctry in zip(c.persons, c.names, c.places, c.countries):
-            if not np.isnan(pl):
-                last[p] = dict(name=nm, country=ctry, last_date=str(c.date), last_show=c.comp, last_place=int(pl))
+            if not np.isnan(pl) and p not in inactive:
+                last[p] = dict(name=nm, country=ctry, last_date=str(c.date), last_show=c.comp, last_place=int(pl),
+                               months_away=round((d - c.date).astype(int) / 30.44))
     if not last:
         return None
     persons = list(last)
@@ -75,6 +81,6 @@ def rank(blend: SplitBlend, f: RankingField) -> list[dict]:
     order = np.argsort(-u)
     top = order[:RANKING_FIELD]
     share = dict(zip(top.tolist(), softmax(u[top]).tolist()))
-    persons = f.contest.persons
+    persons, champ = f.contest.persons, f.X[:, FEATURES.index("reigning_champ")]
     return [dict(rank=k, person_id=persons[i], strength=float(u[i]), olympia_win=share.get(int(i), 0.0),
-                 **f.last[persons[i]]) for k, i in enumerate(order, 1)]
+                 reigning_champion=bool(champ[i]), **f.last[persons[i]]) for k, i in enumerate(order, 1)]

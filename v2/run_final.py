@@ -1,7 +1,8 @@
 """Train v2 on every result in the snapshot, then write power rankings and upcoming-show predictions.
 
 Outputs (local only, nothing touches the database):
-  output/power_rankings.json   current ranking per division, with the rank three months earlier
+  output/power_rankings.json   current ranking per division (pros who competed in the last 30 months and
+                               are not marked inactive), with months away and the rank three months earlier
   output/ranking_history.json  top 10 per division at every year end since 2018
   output/upcoming.json         win, P(2nd), P(3rd), top 3, top 5 and expected place for every lineup not yet judged
   data/v2_state.pkl            the trained recorder + stage 2, for reuse
@@ -35,6 +36,8 @@ def main():
 
     t = time.time()
     cs = cached_contests()
+    inactive_file = Path("data/inactive_athletes.json")   # from `dump.py inactive`; today's flag, ranking only
+    inactive = {r["person_id"] for r in json.loads(inactive_file.read_text())} if inactive_file.exists() else set()
     done = [c for c in cs if c.n_placed >= 1]
     rec = recorder()
     preds, fields, prev = [], {}, None
@@ -44,14 +47,15 @@ def main():
         prev = d
         if d != today:
             for cat in DIVISIONS:
-                if (f := ranking_field(rec, cs, cat, str(d))) is not None:
+                # today's retirement flag only for recent snapshots: past year ends list who was active then
+                if (f := ranking_field(rec, cs, cat, str(d), inactive=inactive if d == earlier else None)) is not None:
                     fields[(d, cat)] = f
     print("replayed", len(preds), "divisions in", round(time.time() - t), "s", flush=True)
     blend = make_blend(rec.names).fit([(rec.snap[p.contest.division_id], p.contest) for p in preds])
 
     rankings = {}
     for cat in DIVISIONS:
-        f = ranking_field(rec, cs, cat, str(today))
+        f = ranking_field(rec, cs, cat, str(today), inactive=inactive)
         if f is None:
             continue
         now = rank(blend, f)
