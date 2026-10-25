@@ -1,6 +1,6 @@
 # Predictor v2: research report
 
-As of 2026-10-23. Everything here was computed from a read-only snapshot of the production
+As of 2026-10-25 (data snapshot of 2026-10-23). Everything here was computed from a read-only snapshot of the production
 database (96,566 pro results, 7,777 divisions, 1947 to 2026). Nothing was written to the database.
 
 ## Headline
@@ -10,10 +10,10 @@ strictly before each show and refitted every January as production would:
 
 | | v2 | uniform guess |
 |---|---|---|
-| predicted favourite wins | **53.8%** | 15.0% |
+| predicted favourite wins | **54.3%** | 15.0% |
 | overlap of predicted and actual top 3 | **72.0%** | 41.9% |
-| Spearman, predicted vs actual order | **0.59** | 0 |
-| winner log-loss (lower is better) | **1.281** | 2.185 |
+| Spearman, predicted vs actual order | **0.60** | 0 |
+| winner log-loss (lower is better) | **1.280** | 2.185 |
 
 Against the v1 production predictor on the 259 divisions of 2026 that v1 scored before the show
 (both judged on the same athletes):
@@ -21,14 +21,14 @@ Against the v1 production predictor on the 259 divisions of 2026 that v1 scored 
 | | v1 (live) | v2 |
 |---|---|---|
 | predicted favourite wins | 37.8% | **54.4%** |
-| top-3 overlap | 62.5% | **73.1%** |
+| top-3 overlap | 62.5% | **73.2%** |
 | Spearman | 0.40 | **0.69** |
-| winner log-loss, 79 divisions where v1 stored a win % | 1.503 | **1.478** |
+| winner log-loss, 79 divisions where v1 stored a win % | 1.503 | **1.465** |
 
 Win percentages are close to honest for underdogs and outsiders: athletes given 10 to 20% won
-14.0% of the time (predicted 14.3%). **Favourites run a few points high:** 70 to 80% won 67.8%
-(predicted 74.6%) and 90%+ won 91.0% (predicted 94.4%); 30 to 40% won a bit more often than
-predicted (38.4% vs 34.8%). Round 2 tried three fixes for this and none held up (see below).
+14.3% of the time (predicted 14.3%). **Favourites run a few points high:** 70 to 80% won 67.7%
+(predicted 74.8%) and 90%+ won 92.2% (predicted 94.3%); 30 to 40% won a bit more often than
+predicted (36.1% vs 34.7%). Rounds 2 and 3 tried five fixes for this and none held up (see below).
 
 ## How it was tested
 
@@ -52,6 +52,9 @@ predicted (38.4% vs 34.8%). Round 2 tried three fixes for this and none held up 
     2. the second decided against a probability shrink;
     3. the third was after dropping the shrink;
     4. the fourth was after the code-review fixes.
+  * In round 3 they were run three more times: twice with inputs that turned out to leak (see the
+    round-3 section), then once with the clean model. The clean model's choices were all made on
+    2021 to 2023.
 
   So 2024 to 2026 is no longer an untouched holdout, and the figures may be slightly optimistic.
   The v1 comparison does not share this issue.
@@ -70,11 +73,12 @@ predicted (38.4% vs 34.8%). Round 2 tried three fixes for this and none held up 
 | + Elo and five more rating views, blended | 1.349 | 50.6% | 70.6% | 0.56 |
 | + status, layoff and division-switch features | 1.332 | 52.3% | 71.2% | 0.58 |
 | + boosted ranker, separate Open and Masters layers, yearly refit (round 1) | 1.300 | 53.3% | 71.9% | 0.59 |
-| + Masters age groups, head to head, qualification (round 2, final) | **1.281** | **53.8%** | **72.0%** | **0.59** |
+| + Masters age groups, head to head, qualification (round 2) | 1.281 | 53.8% | 72.0% | 0.59 |
+| + time away, travel for masters, unknown-country leak removed (round 3, final) | **1.280** | **54.3%** | **72.0%** | **0.60** |
 
 What did not help: Weng-Lin online updates (worse than plain Elo here), judge-score margins as
 features, home-country advantage, damping later picks when simulating placings (Benter style), and
-the round-2 ideas listed below.
+the round-2 and round-3 ideas listed below.
 
 ## The final model
 
@@ -131,6 +135,15 @@ Inputs for both layers besides the ratings:
   qualification for the **Open** Olympia of the division, used as a strength signal; Masters
   Olympia qualification is not modelled. A flag also marks a regular show and the 8 weeks before
   the next Olympia, which is assumed to fall a year after the last one.
+
+**Both layers also get (round 3)** time away: years since the athlete's last show in any division
+and in this one, and their base rating scaled by how stale it is. **The masters layer also gets**
+travel: the athlete's country differs from the event's, and a non-US athlete at a show in the USA.
+
+An athlete with no country on record counts as being from the event's country. Countries are filled in
+after the fact, mostly for athletes who became notable, so "unknown" must not be visible to the model.
+Where the head-to-head input picks a rival among tied athletes it goes by athlete id, never by list
+position (stored lineups are in finishing order). Tests check both.
 
 **Probabilities.** Win % is the softmax of the stage-2 strength. P(2nd), P(3rd), top 3, top 5 and
 expected placing come from 20,000 Plackett-Luce simulations (strength plus Gumbel noise).
@@ -213,6 +226,108 @@ and together on 2018 to 2023; they were confirmed as one bundle on 2024 to 2026.
 * The round-1 model's results do not change on the fixed code (2022 and 2023 re-run: log-loss 1.406
   both times), and every round-2 number above comes from the fixed code.
 
+## Round 3: where the model goes wrong
+
+**Method.** I searched for patterns on 2020 to 2023 only: 1,909 divisions and 23,383 athletes, each
+year predicted by a model fitted on the years before it. For each kind of athlete and show I
+compared expected wins (the sum of their win %) with actual wins. A ratio far from 1 in a large
+group is a systematic miss, not an outlier.
+
+**Mostly well calibrated.** Rookies, switchers, Olympia top 6 athletes, defending champions, home
+athletes, US athletes and athletes in form all won within about 10% of what the model expected.
+
+**Patterns beyond chance (round-2 model):**
+
+| Pattern | Expected | Actual |
+|---|---|---|
+| Athletes with no country on record | 43 wins | **0** (a data artefact, see below) |
+| Masters athletes from outside the USA | 86 wins | 114 (partly the same artefact) |
+| Back after more than 2 years away | 69 wins | 52 |
+| Athletes who lost to this lineup before | 126 wins | 100 |
+| Model rank 6 to 10 | 155 wins | 133 |
+| Model rank 11 and lower | 46 wins | 33 |
+| Flat fields (favourite under 20%) | favourite wins 16% | 31% |
+| Masters athletes on back-to-back weekends | 180 wins | 208 |
+| Masters rookies | 128 wins | 106 |
+| Rookies who were favourites at 60%+ | 11.7 wins | 6 |
+
+None of the 195 rookie winners shares a name with an earlier athlete.
+
+**Two leaks, found on the way.**
+
+* **The country on record.** `person.country` is today's value, and it gets filled in mostly for
+  athletes who later did well: in 2020 to 2023 the 866 entrants without one won 0 times against 43
+  expected.
+  * Once "away" joined "home" as an input, the model could tell "unknown" apart. Most of the first
+    travel gain came from that, which is also why it vanished on 2024 to 2026 (few unknowns there).
+  * An unknown country now counts as the event's own country, and a test checks that such an entrant
+    looks exactly like a home athlete. The round-1 "home" input used the same field in a weaker form
+    and is fixed by the same change.
+* **The finishing order.** Stored lineups are in finishing order.
+  * A first "position within the lineup" input broke ties by list order, for example between several
+    rookies with the same starting rating, so it leaked the result. It looked like a huge gain
+    (Spearman 0.57 to 0.65).
+  * The rank-based parts of the analysis broke ties the same way and overstated the back-of-field
+    pattern (it was 124 and 25 actual wins before the fix).
+  * Ties now go by athlete id, a test checks that inputs do not change when a lineup is reversed, and
+    the lineup-position inputs are gone: without the leak they made things worse.
+
+**What was tried, on 2021 to 2023 after removing the leaks (log-loss, lower is better):**
+
+| Idea | Open-age layer | Masters layer | Verdict |
+|---|---|---|---|
+| Current model | 1.5043 | 1.3366 | |
+| Time away (exact years since the last show, stale rating) | **1.5016** | 1.3327 | kept for both |
+| Travel (athlete from another country, non-US athlete at a US show) | 1.5036 | 1.3363 | |
+| Travel and time away together | 1.5028 | **1.3273** | kept for masters |
+| Head to head in the Open-age layer | 1.504 to 1.508 | already in | rejected |
+| Position within the lineup, share of the lineup with history | worse | worse | rejected |
+
+* **After the model, two corrections for the probability shape** (each year corrected with
+  parameters from earlier years, overall log-loss 1.4300 before):
+  * offsets by lineup rank: 1.4329;
+  * a temperature per division: 1.4315.
+
+  Both are rejected. The offsets swing too much from year to year.
+* **Sixteen stage-2 parameter settings:**
+  * what was varied:
+    * the boosted ranker: leaves 4, 7, 15; iterations 300, 600, 1000; minimum leaf 40, 100, 200;
+      regularisation;
+    * logit regularisation 0.3, 1, 3, 10;
+    * blend weight 0.4, 0.5, 0.6;
+    * training on the last 4 or 6 years or all;
+    * a 1- or 2-year calibration holdout;
+    * the ranker's label depth: top 5 or top 10.
+  * The best gained 0.0014, under the 0.002 bar; the rest were equal or worse. The stage 2 sits on a
+    plateau. This sweep ran before the country fix.
+
+**Confirmation on 2024 to 2026, against round 2:**
+
+| | Round 2 | Round 3 |
+|---|---|---|
+| winner log-loss, all | 1.281 | **1.280** |
+| Open-age classes: log-loss | 1.372 | **1.369** |
+| masters classes: log-loss | 1.178 | **1.177** |
+| favourite wins, all | 53.8% | **54.3%** |
+| Spearman | 0.593 | **0.597** |
+| masters classes: Spearman | 0.543 | **0.554** |
+| calibration error | 0.43 points | **0.31 points** |
+
+The gain is small (log-loss 0.0018) but in the same direction in both layers and on every headline
+number. It also includes removing the "home" leak, which on its own would make the scores look a
+little worse.
+
+**What is left.**
+
+* Real in total but small, and too unstable from year to year to correct:
+  * the back of the field still gets slightly too much win chance;
+  * flat-field favourites get too little;
+  * strong favourites run a few points high;
+  * defending champions and athletes who won their last show do a little worse as strong favourites
+    than expected.
+* The remaining misses look mostly like judging noise: an outsider having the day of their life, or
+  a favourite missing their peak.
+
 ## What the data says about bodybuilding
 
 * **Status is real.** Even after the ratings, being top 6 at the latest Olympia adds clearly to the
@@ -227,7 +342,13 @@ and together on 2018 to 2023; they were confirmed as one bundle on 2024 to 2026.
 * **Ratings carry over between divisions.** An athlete moving from Classic to Open or Bikini to
   Wellness performs in line with their strength in the old division, much better than a rookie.
 * **Layoffs:** one year off is neutral to slightly positive (the improvement year); more than two
-  years off costs clearly. Back-to-back weekends show no consistent effect.
+  years off costs clearly, and the model still overrates returning athletes a little. Back-to-back
+  weekends show no consistent effect.
+* **In Masters, athletes who travel do a little better than their record.** Once time away is
+  known, a masters athlete competing outside their own country (or a non-US athlete at a US show)
+  wins slightly more often than the ratings say. In Open-age classes travel adds nothing. An earlier,
+  bigger "travel effect" was mostly a data artefact: countries are filled in after the fact for
+  notable athletes.
 * **No home advantage** shows up once strength is known. **Score margins** (how unanimous a win
   was) add nothing beyond the placings themselves.
 * **The biggest shows are the most predictable.** Olympia and tier-2 divisions reach a log-loss
@@ -241,8 +362,8 @@ and together on 2018 to 2023; they were confirmed as one bundle on 2024 to 2026.
   * Fit Model, a new division;
   * Wheelchair: tiny sample, and the model is overconfident there.
 
-Per division, Open age, 2024 to 2026: the favourite won 57% in Men's Open and Women's BB, 61% in
-Bikini and Fitness, and 49 to 54% in Classic, 212, Men's Physique, Figure, Wellness and Women's
+Per division, Open age, 2024 to 2026: the favourite won 59% in Men's Open, 57% in Women's BB, 63% in
+Bikini, 58% in Fitness, and 49 to 56% in Classic, 212, Men's Physique, Figure, Wellness and Women's
 Physique.
 
 ## Comparison with PRISM
@@ -266,8 +387,8 @@ day before.
 | Spearman | 0.57 | **0.71** |
 | Kendall | 0.48 | **0.60** |
 | head-to-head log loss | 0.47 | **0.39** |
-| favourite wins, actual show winner | 51% | 51.4% |
-| favourite wins, best-placed rated athlete | 51% | **60.9%** |
+| favourite wins, actual show winner | 51% | 52.0% |
+| favourite wins, best-placed rated athlete | 51% | **61.6%** |
 
 The paper does not say which winner definition it uses, so both are shown. PRISM's code and
 contest list are not public to us, so this follows its written rules; it is not a bit-for-bit
@@ -280,21 +401,21 @@ whole lineup.
 
 | Division | Favourite (win %) | Actual winner (model %, model rank) |
 |---|---|---|
-| Men's Open | Derek Lunsford (39%) | Nick Walker (6%, 5th) |
-| Classic | Ramon Rocha Queiroz (31%) | Niall Darwen (10%, 4th) |
-| 212 | **Keone Pearson (44%)** | Keone Pearson |
-| Men's Physique | **Ryan Terry (29%)** | Ryan Terry |
-| Women's BB | **Andrea Shaw (81%)** | Andrea Shaw |
-| Women's Physique | **Natalia Coelho (51%)** | Natalia Coelho |
-| Figure | **Lola Montez (28%)** | Lola Montez |
+| Men's Open | Derek Lunsford (38%) | Nick Walker (5%, 5th) |
+| Classic | Ramon Rocha Queiroz (31%) | Niall Darwen (9%, 4th) |
+| 212 | **Keone Pearson (46%)** | Keone Pearson |
+| Men's Physique | **Ryan Terry (30%)** | Ryan Terry |
+| Women's BB | **Andrea Shaw (80%)** | Andrea Shaw |
+| Women's Physique | **Natalia Coelho (52%)** | Natalia Coelho |
+| Figure | **Lola Montez (29%)** | Lola Montez |
 | Wellness | **Eduarda Bezerra (34%)** | Eduarda Bezerra |
 | Bikini | Maureen Blanquisco (29%) | Jasmine Gonzalez (6%, 5th) |
 | Fitness | **Michelle Mensah (52%)** | Michelle Mensah |
-| Fit Model | Gabriela Queiroz (23%) | Shealynn Burnett (19%, 2nd) |
+| Fit Model | Gabriela Queiroz (21%) | Shealynn Burnett (16%, 3rd) |
 | Wheelchair | James Berger (24%) | Blake Colleton (2%, 11th) |
 
-7 of 12 winners called. In 7 of 12 divisions the whole actual top 3 came from the model's top 5;
-in the other five, two of the three did.
+7 of 12 winners called. In 9 of 12 divisions the whole actual top 3 came from the model's top 5;
+in the other three, two of the three did.
 
 ## Power ranking
 
@@ -307,31 +428,31 @@ As of 2026-10-23 (win % in a hypothetical Olympia today):
 
 | Division | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
-| Men's Open | Nick Walker (29%) | Derek Lunsford (23%) | Samson Dauda (17%) | Hadi Choopan (8%) | Andrew Jacked (7%) |
-| Classic Physique | Niall Darwen (31%) | Mike Sommerfeld (24%) | Ramon Rocha Queiroz (19%) | Terrence Ruffin (5%) | Wesley Vissers (4%) |
-| 212 | Keone Pearson (52%) | Shaun Clarida (16%) | Lucas Garcia (15%) | Vitor Porto (4%) | Courage Opara (3%) |
-| Men's Physique | Ryan Terry (41%) | Ali Bilal (20%) | Kyron Holden (12%) | Erin Banks (8%) | Brandon Hendrickson (5%) |
-| Women's BB | Andrea Shaw (76%) | Ashley Jones (12%) | Angela Yeo (5%) | Leyvina Barros (3%) | Paula Ranta (1%) |
-| Women's Physique | Natalia Coelho (58%) | Sarah Villegas (19%) | Zama Benta (15%) | Brooke Walker (2%) | Brittany Herrera (1%) |
-| Figure | Lola Montez (45%) | Jessica Reyes Padilla (20%) | Denise Zwinger-Tynek (10%) | Rhea Gayle (8%) | Lena Ramsteiner (5%) |
-| Wellness | Eduarda Bezerra (45%) | Isabelle Nunes (23%) | Elisa Alcantara (14%) | Rayane Fogal (5%) | Leonida Ciobu (4%) |
-| Bikini | Maureen Blanquisco (28%) | Jasmine Gonzalez (19%) | Aimee Delgado (17%) | Lauralie Chapados (9%) | Ashlyn Little (5%) |
-| Fitness | Michelle Mensah (63%) | Jaclyn Baker (26%) | Taylor Learmont (4%) | Anna Fomina (3%) | Allison Kramer (1%) |
-| Fit Model | Shealynn Burnett (50%) | Gabriela Queiroz (23%) | Jane Jones (10%) | Liz Trampas (6%) | Carla Andrea Reyes Vargas (3%) |
-| Wheelchair | Blake Colleton (32%) | James Berger (28%) | Ephraim Gudgeon (14%) | Kevin Secundino (7%) | Rajesh John (5%) |
+| Men's Open | Nick Walker (31%) | Derek Lunsford (20%) | Samson Dauda (17%) | Hadi Choopan (10%) | Andrew Jacked (8%) |
+| Classic Physique | Niall Darwen (32%) | Mike Sommerfeld (24%) | Ramon Rocha Queiroz (18%) | Josema Muñoz (5%) | Terrence Ruffin (5%) |
+| 212 | Keone Pearson (53%) | Shaun Clarida (16%) | Lucas Garcia (14%) | Vitor Porto (4%) | Courage Opara (3%) |
+| Men's Physique | Ryan Terry (41%) | Ali Bilal (21%) | Kyron Holden (11%) | Erin Banks (7%) | Brandon Hendrickson (5%) |
+| Women's BB | Andrea Shaw (78%) | Ashley Jones (11%) | Angela Yeo (5%) | Leyvina Barros (3%) | Paula Ranta (1%) |
+| Women's Physique | Natalia Coelho (57%) | Sarah Villegas (19%) | Zama Benta (15%) | Brooke Walker (2%) | Brittany Herrera (1%) |
+| Figure | Lola Montez (45%) | Jessica Reyes Padilla (21%) | Denise Zwinger-Tynek (9%) | Rhea Gayle (8%) | Lena Ramsteiner (5%) |
+| Wellness | Eduarda Bezerra (46%) | Isabelle Nunes (22%) | Elisa Alcantara (13%) | Rayane Fogal (5%) | Leonida Ciobu (4%) |
+| Bikini | Maureen Blanquisco (26%) | Jasmine Gonzalez (21%) | Aimee Delgado (17%) | Lauralie Chapados (9%) | Ashlyn Little (5%) |
+| Fitness | Michelle Mensah (65%) | Jaclyn Baker (23%) | Taylor Learmont (5%) | Anna Fomina (2%) | Allison Kramer (1%) |
+| Fit Model | Shealynn Burnett (52%) | Gabriela Queiroz (22%) | Jane Jones (9%) | Liz Trampas (5%) | Carla Andrea Reyes Vargas (3%) |
+| Wheelchair | Blake Colleton (33%) | James Berger (26%) | Ephraim Gudgeon (14%) | Kevin Secundino (7%) | Rajesh John (5%) |
 
 Full lists (top 40, with the rank three months earlier, last show and placing) are in
 `output/power_rankings.json`. Year-end top 10s since 2018 are in `output/ranking_history.json`.
 
 **Sanity check.** Across Men's Open, Classic, 212, Men's Physique, Women's BB, Figure, Wellness
-and Bikini since 2018, the year-end #1 was that year's Olympia champion in 50 of 59 division-years
+and Bikini since 2018, the year-end #1 was that year's Olympia champion in 51 of 59 division-years
 (every Classic year, Gillon in Figure 2018 to 2024, Shaw in Women's BB since 2020, Mattos, Nunes
 and Bezerra in Wellness). The misses:
 
-* Men's Open: Heath ranked above Rhoden (2018) and Curry (2019), Choopan above Lunsford (2023) and
-  Dauda (2024);
+* Men's Open: Heath ranked above Rhoden (2018) and Curry (2019), Choopan above Dauda (2024);
 * 212: Lewis above Elgargni (2019), Elgargni above Clarida (2020);
-* Hendrickson above Terry (2023), Gillon above Gayle (2025), Teixeira above Pecini (2019).
+* Gillon above Gayle (2025);
+* Bikini: Teixeira above Pecini (2019), Layug above Dorie (2021).
 
 The year-end lists use the stage-2 layer trained through 2026, so they are a retrospective view,
 not what the model would have said live.
@@ -349,7 +470,8 @@ not what the model would have said live.
 * **Rankings exist for the open circuit, Open age only.** There is no Masters (per age group) or
   natural-circuit power ranking yet.
 * **Weak spots worth a look:**
-  * favourites' win % runs a few points high (round 2 found no fix that held up);
+  * favourites' win % runs a few points high (rounds 2 and 3 found no fix that held up);
+  * the back of the field gets slightly too much win chance (too unstable year to year to correct);
   * Wheelchair is overconfident (22 test divisions);
   * the Masters Olympia is poorly predicted (10 test divisions);
   * natural pros have little history.

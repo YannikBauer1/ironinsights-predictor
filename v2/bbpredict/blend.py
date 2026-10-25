@@ -22,7 +22,12 @@ AGE_GROUP = ["agegrp_shows", "agegrp_wins", "agegrp_last_pct", "agegrp_new", "ag
 AGE_GROUP_VIEWS = ["b_pl_age", "b_elo_age"]
 HEAD_TO_HEAD = ["h2h_net", "h2h_meet", "h2h_vs_top"]
 QUALIFICATION = ["qualified", "qual_x_t3", "near_oly", "near_oly_x_qual", "near_oly_x_top6"]
-MASTERS_COLUMNS = COLUMNS + AGE_GROUP + AGE_GROUP_VIEWS + HEAD_TO_HEAD + QUALIFICATION
+# round 3 input groups, screened on 2021-2023 after removing the unknown-country leak: time away helped
+# both layers, travel only the masters layer and only together with time away
+TRAVEL = ["away", "foreign_at_us"]
+TIME_AWAY = ["years_away", "years_away_pool", "stale_x_base"]
+OPEN_COLUMNS = COLUMNS + TIME_AWAY
+MASTERS_COLUMNS = COLUMNS + AGE_GROUP + AGE_GROUP_VIEWS + HEAD_TO_HEAD + QUALIFICATION + TRAVEL + TIME_AWAY
 TIERS = {"O": 0, "2": 1, "3": 2, "MO": 3, "N": 4}
 LGBM_PARAMS = dict(objective="lambdarank", learning_rate=0.03, num_leaves=7, min_data_in_leaf=100,
                    feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1, lambda_l2=5.0, verbose=-1,
@@ -36,6 +41,11 @@ class Blend:
         self.columns, self.iterations, self.w, self.l2 = columns, iterations, w_lgbm, l2
         self.logit = self.booster = None
         self.scale = self.temperature = 1.0
+
+    @staticmethod
+    def _label(places):
+        """Ranker relevance: 1st = 5, 2nd = 4, ... 5th = 1, the rest 0."""
+        return np.clip(6 - places, 0, 5)
 
     def _with_context(self, X, c, field_size=None):
         """Feature columns plus show tier, Open-age flag, division and field size (the lineup's size)."""
@@ -51,7 +61,7 @@ class Blend:
         for X, c in rows:
             m = c.placed_mask
             Xs.append(self._with_context(X, c)[m])
-            ys.append(np.clip(6 - c.places[m], 0, 5))
+            ys.append(self._label(c.places[m]))
             gs.append(m.sum())
         data = lgb.Dataset(np.vstack(Xs), np.concatenate(ys), group=np.array(gs),
                            categorical_feature=[len(self.idx) + 2])

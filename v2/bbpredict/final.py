@@ -1,7 +1,7 @@
 """The chosen v2 configuration (see REPORT.md for how it was selected)."""
 from __future__ import annotations
 
-from .blend import MASTERS_COLUMNS, SplitBlend
+from .blend import MASTERS_COLUMNS, OPEN_COLUMNS, SplitBlend
 from .data import age_group_pool, masters_split_pool
 from .features import FeatureRecorder
 from .models import Elo
@@ -31,6 +31,6 @@ def recorder() -> FeatureRecorder:
 
 
 def make_blend(names: list[str]) -> SplitBlend:
-    """The stage-2 ranking layer: Open-age classes on the original columns; masters classes also get the
-    age-group, head-to-head and qualification inputs that helped on 2018-2023 and held up on 2024-2026."""
-    return SplitBlend(names, masters_columns=MASTERS_COLUMNS)
+    """The stage-2 ranking layer. Both layers also get time away (round 3); masters classes also get the
+    age-group, head-to-head and qualification inputs (round 2) and travel (round 3)."""
+    return SplitBlend(names, columns=OPEN_COLUMNS, masters_columns=MASTERS_COLUMNS)

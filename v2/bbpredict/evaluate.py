@@ -44,6 +44,15 @@ def walk_forward(model: Model, contests: list[Contest], start: str, end: str,
     return out
 
 
+def lineup_rank(theta: np.ndarray, persons: list[str]) -> np.ndarray:
+    """1 = highest strength. Ties go by a hash of the person id, never by list position:
+    stored lineups are in finishing order, so position would leak the result."""
+    order = sorted(range(len(theta)), key=lambda k: (-theta[k], zlib.crc32(persons[k].encode())))
+    rank = np.empty(len(theta), int)
+    rank[order] = np.arange(1, len(theta) + 1)
+    return rank
+
+
 def softmax(x: np.ndarray) -> np.ndarray:
     z = np.exp(x - x.max())
     return z / z.sum()

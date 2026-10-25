@@ -1,8 +1,10 @@
-"""Round 2 before/after on the held-out years 2024-2026: our main test (whole lineup, every division)
-and PRISM's published protocol. Reads data/baseline_final_test_preds.pkl (before) and
-data/final_test_preds.pkl (after)."""
+"""Before/after on the held-out years 2024-2026: our main test (whole lineup, every division) and
+PRISM's published protocol.
+usage: before_after.py [before.pkl] [after.pkl]
+defaults: data/baseline_final_test_preds.pkl (round 1) and data/final_test_preds.pkl (current)."""
 import math
 import pickle
+import sys
 from collections import defaultdict
 
 import numpy as np
@@ -11,8 +13,8 @@ from scipy.stats import kendalltau, spearmanr
 from bbpredict.data import DIVISIONS, cached_contests
 from bbpredict.evaluate import calibration_table, summarize
 
-before = pickle.load(open("data/baseline_final_test_preds.pkl", "rb"))
-after = pickle.load(open("data/final_test_preds.pkl", "rb"))
+before = pickle.load(open(sys.argv[1] if len(sys.argv) > 1 else "data/baseline_final_test_preds.pkl", "rb"))
+after = pickle.load(open(sys.argv[2] if len(sys.argv) > 2 else "data/final_test_preds.pkl", "rb"))
 assert [p.contest.division_id for p in before] == [p.contest.division_id for p in after]
 
 SLICES = {

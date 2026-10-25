@@ -65,7 +65,7 @@ def ranking_field(rec: FeatureRecorder, contests: list[Contest], cat: str, date:
         cat=cat, age="Open", enh="Open", comp="olympia", tier="O", weight_class="",
         persons=persons, places=np.full(len(persons), np.nan), prejudge=np.full(len(persons), np.nan),
         total=np.full(len(persons), np.nan), names=[last[p]["name"] for p in persons],
-        countries=[last[p]["country"] for p in persons], event_country="")
+        countries=[last[p]["country"] for p in persons], event_country="US")   # the Olympia is held in the USA
     return RankingField(synth, rec.features(synth).copy(), last)
 
 

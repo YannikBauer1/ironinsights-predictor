@@ -6,6 +6,7 @@ features from strictly earlier history, on update() it adds the contest to the h
 from __future__ import annotations
 
 import math
+import zlib
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -56,6 +57,14 @@ FEATURES = [
     "agegrp_last_pct",              # percentile of their latest result in this age group
     "agegrp_new",                   # masters class, first time in this age group but has history in the division
     "age_moved_up",                 # masters class above every bracket they did before (just aged into it)
+    # round 3: time away, travel, and where the athlete stands within this lineup
+    # (an unknown country counts as the event's own: see _country)
+    "years_away",                   # years since their last show in any division, capped at 10 (0 also for rookies,
+                                    # whom rookie_pro marks)
+    "years_away_pool",              # years since their last placed result in this division, capped at 10
+    "stale_x_base",                 # base rating times min(years_away_pool, 5), so the model can discount old ratings
+    "away",                         # athlete's country differs from the event's
+    "foreign_at_us",                # athlete from outside the USA at a show in the USA
 ]
 H2H_DAYS, H2H_TAU = 3 * 365, 730.0
 
@@ -88,6 +97,12 @@ def judge_placings(c: Contest) -> np.ndarray:
     return out
 
 
+def _country(c: Contest, i: int) -> str:
+    """Entrant i's country, an unknown one counting as the event's own. person.country is filled in
+    after the fact, mostly for athletes who became notable, so "unknown" must not be visible to the model."""
+    return c.countries[i] or c.event_country
+
+
 def placing_percentile(r: HistoryEntry) -> float:
     """1 for a win, 0 for last place."""
     return 1 - (r.place - 1) / max(r.n - 1, 1) if r.n > 1 else 1.0
@@ -107,12 +122,17 @@ class FeatureRecorder:
     def predict(self, c: Contest):
         theta = np.asarray(self.base.predict(c), float)
         X = np.zeros((len(c.persons), len(self.names)))
-        by_rating = np.argsort(-theta, kind="stable")
+        # ties broken by a hash of the person id (stable across runs, unlike hash()), never by list
+        # position: stored lineups are in finishing order, so position would leak the result
+        by_rating = sorted(range(len(theta)), key=lambda k: (-theta[k], zlib.crc32(c.persons[k].encode())))
         for i, p in enumerate(c.persons):
             f = self._features(p, c, theta[i])
-            f["home"] = float(bool(c.event_country) and c.countries[i] == c.event_country)
+            country = _country(c, i)
+            f["home"] = float(bool(c.event_country) and country == c.event_country)
             rival = c.persons[by_rating[1] if by_rating[0] == i else by_rating[0]] if len(theta) > 1 else None
             f.update(self._head_to_head(p, c, rival))
+            f["away"] = float(bool(c.event_country) and country != c.event_country)
+            f["foreign_at_us"] = float(c.event_country == "US" and country != "US")
             X[i, :len(FEATURES)] = [f[k] for k in FEATURES]
         for j, m in enumerate(self.extra.values()):
             X[:, len(FEATURES) + j] = m.predict(c)
@@ -213,6 +233,10 @@ class FeatureRecorder:
             f["gap_year"] = float(365 < gap <= 730)
             f["gap_long"] = float(gap > 730)
             f["shows_365"] = sum(1 for r in h if (c.date - r.date).astype(int) <= 365)
+            f["years_away"] = min(gap / 365, 10.0)
+        if placed_pool:
+            f["years_away_pool"] = min((c.date - placed_pool[-1].date).astype(int) / 365, 10.0)
+            f["stale_x_base"] = base * min(f["years_away_pool"], 5.0)
         f["masters_only"] = float(bool(pool_rows) and not any(r.open_age for r in pool_rows))
         scored = [r for r in placed_pool if not math.isnan(r.avg_jp)]
         if scored:

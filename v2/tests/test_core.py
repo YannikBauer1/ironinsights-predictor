@@ -148,3 +148,27 @@ def test_stage2_refuses_a_fit_that_breaks_down():
     from bbpredict.stage2 import Stage2
     with pytest.raises(RuntimeError), np.errstate(all="ignore"):
         Stage2().fit([(np.array([[np.inf], [0.0], [1.0]]), np.array([1.0, 2.0, 3.0]))])
+
+
+def test_features_do_not_depend_on_the_order_of_the_lineup():
+    # historical lineups are stored in finishing order: any order dependence would leak the result
+    from bbpredict.features import FeatureRecorder
+    from bbpredict.models import Uniform
+    history = [contest("h1", "2020-01-01", "abc", [1, 2, 3]), contest("h2", "2020-03-01", "bd", [1, 2])]
+    rec = FeatureRecorder(Uniform())
+    for c in history:
+        rec.update(c)
+    first = rec.features(contest("t1", "2020-06-01", "abcdxy", [np.nan] * 6)).copy()
+    reversed_ = rec.features(contest("t2", "2020-06-01", "yxdcba", [np.nan] * 6))
+    assert np.allclose(first, reversed_[::-1])
+
+
+def test_an_unknown_country_looks_exactly_like_a_home_athlete():
+    # person.country is filled in later, mostly for athletes who became notable: "unknown" must not be visible
+    from bbpredict.features import FeatureRecorder
+    from bbpredict.models import Uniform
+    c = contest("t", "2020-06-01", "abc", [np.nan] * 3)
+    c.countries, c.event_country = ["US", "", "BR"], "US"
+    X = FeatureRecorder(Uniform()).features(c)
+    assert np.array_equal(X[0], X[1])
+    assert not np.array_equal(X[0], X[2])

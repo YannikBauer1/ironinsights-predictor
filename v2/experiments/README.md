@@ -41,3 +41,21 @@ PYTHONPATH=. .venv/bin/python experiments/before_after.py         # before / aft
 
 `before_after.py` compares `data/baseline_final_test_preds.pkl` (the committed round-1 model's
 `backtest_final.py` output, kept aside before round 2) with the current `data/final_test_preds.pkl`.
+
+## Round 3 (error analysis; time away for both layers, travel for masters)
+
+Patterns searched on 2020-2023 only, fixes screened on 2021-2023, confirmed on 2024-2026. Two leaks found on the way
+(finishing-order tie-breaks, unknown country) are fixed; REPORT.md describes them.
+
+```bash
+PYTHONPATH=. .venv/bin/python experiments/round2_folds.py data/walk.pkl data/r3_analysis_cand.pkl 2020,2021,2022,2023
+PYTHONPATH=. .venv/bin/python experiments/error_analysis.py data/r3_analysis_cand.pkl    # expected vs actual wins by group
+PYTHONPATH=. .venv/bin/python experiments/round3_eval.py open "time away"                # one input group in one layer
+PYTHONPATH=. .venv/bin/python experiments/round3_eval.py masters "travel + time away"
+PYTHONPATH=. .venv/bin/python experiments/round3_eval.py params logit_l2_0.3            # one stage-2 parameter setting
+PYTHONPATH=. .venv/bin/python experiments/posthoc_calibration.py data/r3_analysis_cand.pkl   # rank / division corrections (rejected)
+PYTHONPATH=. .venv/bin/python experiments/before_after.py data/round2_final_test_preds.pkl data/final_test_preds.pkl   # round 2 vs now
+```
+
+`round3_eval.py` lists every group and parameter setting that was tried. `round2_folds.py` now
+uses the current `final.make_blend`, so its output follows whatever `final.py` holds.

@@ -55,6 +55,6 @@ bbpredict/
   final.py      the chosen configuration: recorder() (eight rating views) and make_blend()
   pipeline.py   replay history, predict a lineup, power ranking
   montecarlo.py placing probabilities by simulation
-experiments/    the exploration scripts behind REPORT.md (round 1 and round 2, see its README)
-tests/          leakage, likelihood gradient and stability, whole-lineup scoring, new features, judge count, probability sums
+experiments/    the exploration scripts behind REPORT.md (rounds 1 to 3, see its README)
+tests/          leakage (dates and lineup order), likelihood gradient and stability, whole-lineup scoring, features, judge count, probability sums
 ```
