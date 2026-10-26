@@ -83,3 +83,15 @@ PYTHONPATH=. .venv/bin/python experiments/prism_by_division.py     # JSON lines:
 ```
 
 The test rules are `bbpredict/prism.py`; `before_after.py` uses the same function.
+
+## Division round (nothing kept)
+
+```bash
+PYTHONPATH=. .venv/bin/python walk.py 2012 data/walk_2012.pkl                 # longer replay (~45 min)
+PYTHONPATH=. .venv/bin/python experiments/division_round.py --walk data/walk_2012.pkl data/dr_tune_a.pkl \
+    2015,2016,2017,2018,2019,2020,2021,2022,2023 base cons_open groups3_mix bikini_t1
+PYTHONPATH=. .venv/bin/python experiments/division_compare.py data/dr_tune_a.pkl       # year by year against base
+```
+
+`division_round.py` lists every variant. Run variants in separate processes for speed; give
+`division_compare.py` all outputs, one of which holds `base`.

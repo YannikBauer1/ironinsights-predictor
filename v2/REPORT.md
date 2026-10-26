@@ -333,6 +333,50 @@ little worse.
 * The remaining misses look mostly like judging noise: an outsider having the day of their life, or
   a favourite missing their peak.
 
+## Division round: should divisions be handled differently?
+
+**Question:** some divisions may reward consistency more, or have more upsets, so would separate
+handling per division predict better? **Test span:** the model replayed from 2012
+(`walk.py 2012 data/walk_2012.pkl`), ideas screened on nine years (2015 to 2023, each year predicted by
+a stage 2 fitted on the years before), then confirmed on 2024 to 2026. An idea had to win on the
+total and in most years (`experiments/division_round.py`, `experiments/division_compare.py`). The
+2015 fold learns from only 2012 to 2014, so it is the noisiest year.
+
+What the model already does per division: short and long memory ratings that the second layer
+weighs, a separate rating weight per division, and the division as an input of the boosted ranker.
+
+Winner log-loss, all divisions (lower is better). Before = the final model on the same replay:
+1.5951 on 2015 to 2023, 1.2754 on 2024 to 2026.
+
+| Idea | 2015-2023 after | change | years better | 2024-2026 after | change | years better | Verdict |
+|---|---|---|---|---|---|---|---|
+| Athlete consistency (spread and worst of the latest placings), Open layer | 1.5971 | +0.0021 | 2 of 9 | | | | rejected |
+| The same in both layers | 1.5995 | +0.0044 | 3 of 9 | | | | rejected |
+| Own Open layer for men / women | 1.6042 | +0.0091 | 2 of 9 | | | | rejected |
+| Men / women layer mixed 50/50 with the shared one | 1.5961 | +0.0011 | 5 of 9 | | | | rejected |
+| Own layer for muscle / shape / women's muscle divisions | 1.6046 | +0.0096 | 0 of 9 | | | | rejected |
+| The same mixed 50/50 with the shared one | 1.5944 | -0.0007 | 6 of 9 | 1.2785 | +0.0031 | 0 of 3 | rejected |
+| Bikini confidence corrected from the last 1, 2 or 3 years | 1.5955 to 1.5962 | +0.0004 to +0.0011 | 3 to 5 of 9 | 1.2757 to 1.2758 | +0.0003 to +0.0004 | 1 to 2 of 3 | rejected |
+
+* **Separate layers lose** because each division group has too few shows to learn from; the early
+  folds make this worse (the men / women layer loses 0.078 in 2015 alone). Mixed with the shared
+  layer, the three-group version came close (-0.0007, below the 0.002 bar, sent to confirmation
+  anyway) but was worse in all three of 2024 to 2026.
+* **Consistency adds nothing** the model does not already see through recent placings, trend and
+  the short and long memory ratings.
+* **Bikini is not a predictable division in disguise.** Its favourites won 4.5 to 6.8 points more
+  often than the model said in 2024 to 2026, but in 7 of the 9 years before they won less often
+  (down to -10.5 in 2023, with +12.4 in 2018 the exception). The direction flips, so a correction
+  learned from earlier years lags behind it: worse on 2015 to 2023 and on 2024 to 2026. The
+  correction gets no earlier year for 2015 and fewer than k years for 2016 and 2017.
+
+**Side finding, not acted on:** the replay from 2012 gives stage 2 more training years (3702
+divisions before 2024 instead of 2543), and the unchanged final model scores 1.2754 on 2024 to
+2026 instead of 1.2797 (`logs/r5_backtest.log`), better in 2025 and 2026 and worse in 2024. Worth
+its own test before production uses it.
+
+The final model is unchanged.
+
 ## What the data says about bodybuilding
 
 * **Status is real.** Even after the ratings, being top 6 at the latest Olympia adds clearly to the
