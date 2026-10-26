@@ -49,6 +49,7 @@ Outputs:
 bbpredict/
   data.py       snapshot -> chronological contests; rating pools
   evaluate.py   leak-free walk-forward runner and metrics
+  prism.py      PRISM's published test rules (its white paper), applied to our predictions
   models.py     baselines: uniform, recent placings, multiplayer Elo, Weng-Lin
   plfit.py      time-weighted Plackett-Luce, MAP refit per show date (forward or reverse, log-domain likelihood)
   features.py   stage-2 features recorded during the walk (status, layoffs, switches, age groups, head to head, ...)

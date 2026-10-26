@@ -2,16 +2,14 @@
 PRISM's published protocol.
 usage: before_after.py [before.pkl] [after.pkl]
 defaults: data/baseline_final_test_preds.pkl (round 1) and data/final_test_preds.pkl (current)."""
-import math
 import pickle
 import sys
-from collections import defaultdict
 
 import numpy as np
-from scipy.stats import kendalltau, spearmanr
 
 from bbpredict.data import DIVISIONS, cached_contests
 from bbpredict.evaluate import calibration_table, summarize
+from bbpredict.prism import prism_scores
 
 before = pickle.load(open(sys.argv[1] if len(sys.argv) > 1 else "data/baseline_final_test_preds.pkl", "rb"))
 after = pickle.load(open(sys.argv[2] if len(sys.argv) > 2 else "data/final_test_preds.pkl", "rb"))
@@ -43,51 +41,10 @@ for label, preds in (("before", before), ("after", after)):
     print(f"\ncalibration {label}: ECE={ece:.4f}  " + "  ".join(f"{lo:.1f}+: {x:.3f}/{y:.3f}" for lo, _, n, x, y in tab if lo >= 0.5))
 
 # PRISM protocol on the held-out years
-DIVS = {"mensbb", "classic", "mensphysique", "bikini", "fitness", "wellness"}
-MEN = {"mensbb", "classic", "mensphysique"}
-START, END = np.datetime64("2023-01-01"), np.datetime64("2026-07-19")
-scope = [c for c in cached_contests() if c.cat in DIVS and c.is_open_age and c.enh == "Open" and START <= c.date < END]
-shows = defaultdict(list)
-for c in scope:
-    for p, pl in zip(c.persons, c.places):
-        if not np.isnan(pl):
-            shows[(c.cat, p)].append((c.date, pl))
-
-
-def rated(c, p):
-    past = [(d, pl) for d, pl in shows[(c.cat, p)] if d < c.date]
-    return len(past) >= 3 or (c.cat in MEN and any(pl == 1 for _, pl in past))
-
-
-def prism(preds):
-    theta = {p.contest.division_id: p.theta for p in preds}
-    ok = tot = 0
-    win_show, win_rated, rho, tau, ll = [], [], [], [], []
-    for c in scope:
-        if c.date < np.datetime64("2024-01-01") or c.division_id not in theta:
-            continue
-        idx = [i for i, p in enumerate(c.persons) if not np.isnan(c.places[i]) and rated(c, p)]
-        if len(idx) < 2:
-            continue
-        th, pl = theta[c.division_id][idx], c.places[idx]
-        for x in range(len(idx)):
-            for y in range(x + 1, len(idx)):
-                if pl[x] != pl[y]:
-                    w, l = (x, y) if pl[x] < pl[y] else (y, x)
-                    tot += 1
-                    ok += th[w] > th[l]
-                    ll.append(math.log1p(math.exp(th[l] - th[w])))
-        fav = int(np.argmax(th))
-        win_show.append(pl[fav] == 1)
-        win_rated.append(pl[fav] == pl.min())
-        if len(idx) >= 3 and np.ptp(th) > 0 and np.ptp(pl) > 0:
-            rho.append(spearmanr(-th, pl).statistic)
-            tau.append(kendalltau(-th, pl).statistic)
-    return ok / tot, np.mean(win_show), np.mean(win_rated), np.nanmean(rho), np.nanmean(tau), np.mean(ll)
-
-
-pb, pa = prism(before), prism(after)
+pb = prism_scores({p.contest.division_id: p.theta for p in before}, cached_contests(), "2024-01-01", "2026-07-19")["all"]
+pa = prism_scores({p.contest.division_id: p.theta for p in after}, cached_contests(), "2024-01-01", "2026-07-19")["all"]
 print("\nPRISM protocol, 2024 to 18 Jul 2026 (PRISM paper: pairs 77%, winner 51%, Spearman 0.57, Kendall 0.48, log loss 0.47)")
-for name, i, f in [("pairs ordered correctly", 0, "{:.1%}"), ("favourite wins (show)", 1, "{:.1%}"), ("favourite wins (rated)", 2, "{:.1%}"),
-                   ("Spearman", 3, "{:.3f}"), ("Kendall", 4, "{:.3f}"), ("pairwise log loss", 5, "{:.3f}")]:
-    print(f"  {name:26s} {f.format(pb[i])} -> {f.format(pa[i])}")
+for name, key, f in [("pairs ordered correctly", "pairs_correct", "{:.1%}"), ("favourite wins (show)", "favourite_wins", "{:.1%}"),
+                     ("favourite wins (rated)", "favourite_wins_rated", "{:.1%}"), ("top-3 overlap", "top3_overlap", "{:.1%}"),
+                     ("Spearman", "spearman", "{:.3f}"), ("Kendall", "kendall", "{:.3f}"), ("pairwise log loss", "pair_logloss", "{:.3f}")]:
+    print(f"  {name:26s} {f.format(pb[key])} -> {f.format(pa[key])}")

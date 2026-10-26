@@ -229,3 +229,15 @@ def test_the_open_layer_adds_a_fixed_bonus_for_the_unbeaten_champion():
     X[0, FEATURES.index("champ_unbeaten")] = 1.0
     assert model.utility(X, contest("t", "2026-06-01", "ab", [np.nan] * 2)).tolist() == [0.5, 0.0]
     assert model.utility(X, contest("t", "2026-06-01", "ab", [np.nan] * 2, age="40+")).tolist() == [0.0, 0.0]
+
+
+def test_prism_scores_never_depend_on_lineup_order_and_ties_never_count_as_right():
+    from bbpredict.prism import prism_scores
+    history = [contest(f"h{i}", f"2023-0{i}-01", "abc", [1, 2, 3]) for i in (1, 2, 3)]
+    shuffles = []
+    for order in ("abc", "cab", "bca"):
+        target = contest("t", "2024-05-01", order, [{"a": 1, "b": 2, "c": 3}[p] for p in order])
+        scores = prism_scores({"t": np.zeros(3)}, history + [target], "2024-01-01", "2024-12-31")
+        shuffles.append(scores["bikini"])
+    assert shuffles[0] == shuffles[1] == shuffles[2]
+    assert shuffles[0]["contests"] == 1 and shuffles[0]["pairs_correct"] == 0.0

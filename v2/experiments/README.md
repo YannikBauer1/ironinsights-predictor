@@ -75,3 +75,11 @@ The first writes `data/champion_seasons.pkl`, which `champion_rules.py` needs. `
 ranking rule (champion first until beaten); it was replaced by the bonus inside the model.
 `champion_weight.py` adds its own champion inputs to the snapshot, so it also runs on a walk made
 before `champ_unbeaten` existed.
+
+## PRISM's test, per division
+
+```bash
+PYTHONPATH=. .venv/bin/python experiments/prism_by_division.py     # JSON lines: v2 and PRISM's paper per division
+```
+
+The test rules are `bbpredict/prism.py`; `before_after.py` uses the same function.

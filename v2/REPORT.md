@@ -399,6 +399,24 @@ The paper does not say which winner definition it uses, so both are shown. PRISM
 contest list are not public to us, so this follows its written rules; it is not a bit-for-bit
 replica.
 
+Per division, v2 then PRISM's paper (`experiments/prism_by_division.py`; the rules live in
+`bbpredict/prism.py`, where ties in predicted strength never count as right and are broken by athlete
+id). Our database scores many more contests (763 against 264), so small divisions can differ by
+chance; PRISM's window opens in 2023, ours in 2024 because 2023 helped choose our settings.
+
+| Division | Contests | Pairs right | Favourite wins | Top 3 | Spearman |
+|---|---|---|---|---|---|
+| Men's Open | 61 / 65 | 84% / 79% | 52% / **56%** | 80% / 62% | 0.76 / 0.63 |
+| Classic Physique | 171 / 34 | 83% / 75% | 49% / **71%** | 81% / 62% | 0.72 / 0.50 |
+| Men's Physique | 193 / 51 | 83% / 77% | 50% / 46% | 76% / 65% | 0.73 / 0.39 |
+| Bikini | 204 / 45 | 82% / 78% | 61% / 55% | 71% / 62% | 0.70 / 0.62 |
+| Fitness | 28 / 16 | 84% / 80% | 61% / 58% | 88% / 74% | 0.72 / **0.80** |
+| Wellness | 106 / 53 | 81% / 70% | 42% / 29% | 77% / 59% | 0.68 / 0.54 |
+| All six | 763 / 264 | 82% / 77% | 52% / 51% | 76% / 63% | 0.71 / 0.57 |
+
+v2 orders more pairs right and finds more of the top 3 in every division. PRISM's favourite won
+more often in Classic Physique and Men's Open, and its Spearman is higher in Fitness.
+
 ## Olympia 2026, predicted before the show
 
 Stage 2 trained on results up to 2025-12-31, ratings up to the day before the show, win % over the
