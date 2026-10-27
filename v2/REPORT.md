@@ -632,6 +632,77 @@ Olympias log-loss improved from 1.548 to 1.509, while one more favourite lost (G
 Figure champion, now favoured in 2026; Montez won). Against v1 on its 79 divisions with a stored
 win %, v2's log-loss moved from 1.465 to 1.470.
 
+## App display check (hub#334)
+
+**Question:** what would fans have seen in the app's Odds tab and Power Ranking at every show of 2024 to
+2026, and does any of it look wrong? Odds as in the backtest (stage 2 refitted every January); the Power
+Ranking rebuilt the day before each show date, with win % over the top 50 (the app's cut-off), without
+the inactive flag (today's flag says nothing about the past). The app shows whole percent and "<1%" below
+half a percent. Favourites and the odds' top 3 break ties by athlete id. 2,610 classes, 1,045 rankings
+(`experiments/display_check.py`; its replay matched `data/walk.pkl` on all 2,610 classes). Decisions are
+Yannik's, 27 October 2026.
+
+**1. Ranking chips.** Of the chips athletes would have carried into Open-age shows, "<1%" stood next to
+1% of #1 to #10, 17% of #11 to #30 and 19% of #31 to #50. By division, #31 to #50 shows "<1%" most in the
+small ones (Fitness 35%, Fit Model 34%, Wheelchair 2 of 3) and least in Men's Open (9%). The best-ranked
+cases are #31s at an Olympia (Marika Jones in Women's Physique 2026, Kellen Wilson in Classic 2024).
+"<1%" comes from big lineups, not from the cut-off. *Decision: keep the top 50.*
+
+**2. The long tail.** 33% of all rows would show "<1%": 43% in Open-age classes, 9% in Masters, 2% in
+Natural. More than half of the lineup shows "<1%" in 17% of all classes and in 33% of Open-age classes. In
+the 376 lineups of 20 or more, 229 are mostly "<1%"; the median one has 14 such rows, together about 2%
+of the win chance (at most 7.5%). Their top-3 chance does not help either (median 0.9%). *Decision: rows
+under 1% go below a divider "Under 1% · N athletes · together X%" without a number of their own.*
+
+**3. Little history.** Accuracy by the share of the lineup with an earlier pro result (winner log-loss,
+and skill = 1 minus log-loss over the uniform guess's):
+
+| With history | Classes | Log-loss | Skill | Favourite said | Favourite won |
+|---|---|---|---|---|---|
+| under 25% | 10 | 1.263 | 0.02 | 44% | 40% |
+| 25 to 50% | 45 | 1.247 | 0.36 | 48% | 56% |
+| 50 to 75% | 458 | 1.425 | 0.32 | 52% | 48% |
+| 75 to 90% | 911 | 1.423 | 0.42 | 52% | 52% |
+| 90 to 100% | 1186 | 1.115 | 0.45 | 57% | 59% |
+
+From 50 to 75% the model is sharper than it should be, most of all in Masters (favourite said 54%, won
+47%; skill 0.19 against 0.33 and 0.36 above). Under 50% is too rare to measure (55 classes). Under 75%
+covers 513 of 2,610 classes (20%). **Wheelchair** is worse than guessing even with history (22 classes,
+skill -0.19, favourite said 72% and won 50%, median 94% of the lineup with history). **Natural** is weak
+at every level (skill 0.00 to 0.20) and its favourites win about as often as said overall (said 49 to
+60%, won 38 to 67% across the small bands). *Decision: the Little history note under 75%, always in
+Wheelchair, none for Natural.*
+
+**4. Dark horse** (classes with 4 or more placed: 2,243). "Outside the odds' top 3 and has beaten a top-3
+athlete before" fires on 2,581 athletes in 53% of classes (196 with four or more), mostly long shots
+beaten years ago. The strict rule (the win over a top-3 athlete is from the last two years, and the
+model gives 15% or more for the top 3) fires on 913 athletes in 31% of classes, one per class in 510 of
+those 689. Compared fairly, with outsiders who have the same 15% or more but no recent win over the top 3:
+
+| | Athletes | Top 3 said | Finished top 3 | Win said | Won |
+|---|---|---|---|---|---|
+| Strict dark horses | 913 | 28.4% | 32.3% | 6.5% | 5.6% |
+| Same 15%+, no recent win over the top 3 | 3,817 | 26.5% | 27.5% | 5.5% | 6.1% |
+
+So the label marks athletes who reach the top 3 a little more often than the odds say (about 4 points,
+against 1 for their peers), not hidden winners. Examples (win %): Ali Bilal at the 2024 New York Pro (16%,
+top 3), Ashlyn Little at the 2025 Arnold (10%, top 3), Edvan Palmeira at the 2025 Pittsburgh Pro (15%,
+top 3), Corey Morris at the 2024 Arnold (16%, 5th). *Decision: keep, strict rule only.*
+
+**5. Lineup strength,** measured as the share of the division's Power Ranking win chance standing in the
+lineup: 73% of Open-age classes hold under 1% of it (median 0%, 90th percentile 8%). With bands at the
+90th, 65th and 25th percentile, every Olympia is "Stacked"; other shows split Stacked 58, Strong 291,
+Normal 498, Open 317. The 95 Stacked classes outside the Olympia are mostly small divisions where the few
+top athletes meet (Women's BB at the Arizona Pro, Wheelchair and Wellness at the Arnold). *Decision:
+dropped, mainly because PRISM shows a per-show field strength (6).*
+
+**6. PRISM wording** (its site prism-ranking.com, white paper and media guide, read 27 October 2026):
+PRISM shows "Field strength NN/100" on its show pages, a "field score" on event recaps, and the heading
+"If the Olympia were held today · PRISM odds". It uses "PRISM odds", "podium odds" and "win probability",
+"rated", "Provisional ≈ #N", ▲▼NEW share cards, and never "Power Ranking", "Dark horse", "Pro debut" or
+"Reigning champion". *Decision: the planned line "Odds if the Olympia were today" becomes "Chance to win
+against this top 50 · from every pro result, updated after each show"; the tab name "Odds" stays.*
+
 ## What is not done
 
 * **Nothing is wired into production yet.**

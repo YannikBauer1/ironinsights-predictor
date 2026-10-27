@@ -109,3 +109,12 @@ PYTHONPATH=. .venv/bin/python experiments/division_compare.py data/tw_a.pkl data
 
 `train_window.py` on `data/walk.pkl` with `from2018` reproduces the production backtest (1.2797 on
 2024 to 2026). The 2012 option on its own replay is the `base` of the division round's outputs.
+
+## Display check for the app (hub#334)
+
+```bash
+PYTHONPATH=. .venv/bin/python experiments/display_check.py compute   # rolling odds + ranking before every show (~11 min)
+PYTHONPATH=. .venv/bin/python experiments/display_check.py report    # the five data questions of hub#334
+```
+
+`compute` stops if its replay's features differ from `data/walk.pkl`, so run `walk.py` first after any model change.

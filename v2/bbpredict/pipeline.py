@@ -75,11 +75,11 @@ def ranking_field(rec: FeatureRecorder, contests: list[Contest], cat: str, date:
     return RankingField(synth, rec.features(synth).copy(), last)
 
 
-def rank(blend: SplitBlend, f: RankingField) -> list[dict]:
-    """Order the candidates by strength; win share = softmax over the top RANKING_FIELD."""
-    u = blend.utility(f.X, f.contest, field_size=RANKING_FIELD)
+def rank(blend: SplitBlend, f: RankingField, field: int = RANKING_FIELD) -> list[dict]:
+    """Order the candidates by strength; win share = softmax over the top `field`."""
+    u = blend.utility(f.X, f.contest, field_size=field)
     order = np.argsort(-u)
-    top = order[:RANKING_FIELD]
+    top = order[:field]
     share = dict(zip(top.tolist(), softmax(u[top]).tolist()))
     persons, champ = f.contest.persons, f.X[:, FEATURES.index("reigning_champ")]
     return [dict(rank=k, person_id=persons[i], strength=float(u[i]), olympia_win=share.get(int(i), 0.0),
