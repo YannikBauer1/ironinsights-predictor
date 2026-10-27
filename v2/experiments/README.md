@@ -95,3 +95,17 @@ PYTHONPATH=. .venv/bin/python experiments/division_compare.py data/dr_tune_a.pkl
 
 `division_round.py` lists every variant. Run variants in separate processes for speed; give
 `division_compare.py` all outputs, one of which holds `base`.
+
+## Training window round (nothing kept)
+
+```bash
+PYTHONPATH=. .venv/bin/python walk.py 2006 data/walk_2006.pkl                 # replay from 2006 (~7 min)
+Y=2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026
+PYTHONPATH=. .venv/bin/python experiments/train_window.py data/walk_2006.pkl data/tw_a.pkl $Y last6 last3 last4 last8
+PYTHONPATH=. .venv/bin/python experiments/train_window.py data/walk_2006.pkl data/tw_b.pkl $Y last6 from2006 from2009 from2012
+PYTHONPATH=. .venv/bin/python experiments/train_window.py data/walk.pkl data/tw_prod.pkl 2021,2022,2023,2024,2025,2026 from2018
+PYTHONPATH=. .venv/bin/python experiments/division_compare.py data/tw_a.pkl data/tw_b.pkl   # the first variant is base
+```
+
+`train_window.py` on `data/walk.pkl` with `from2018` reproduces the production backtest (1.2797 on
+2024 to 2026). The 2012 option on its own replay is the `base` of the division round's outputs.

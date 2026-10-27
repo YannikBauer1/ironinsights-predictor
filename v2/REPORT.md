@@ -370,12 +370,55 @@ Winner log-loss, all divisions (lower is better). Before = the final model on th
   learned from earlier years lags behind it: worse on 2015 to 2023 and on 2024 to 2026. The
   correction gets no earlier year for 2015 and fewer than k years for 2016 and 2017.
 
-**Side finding, not acted on:** the replay from 2012 gives stage 2 more training years (3702
-divisions before 2024 instead of 2543), and the unchanged final model scores 1.2754 on 2024 to
-2026 instead of 1.2797 (`logs/r5_backtest.log`), better in 2025 and 2026 and worse in 2024. Worth
-its own test before production uses it.
+**Side finding:** the replay from 2012 gives stage 2 more training years (3702 divisions before
+2024 instead of 2543), and the unchanged final model scored 1.2754 on 2024 to 2026 instead of the
+production backtest's 1.2797 (better in 2025 and 2026, worse in 2024). The next section tests it as a
+production change and rejects it.
 
-The final model is unchanged.
+## Training window round: should stage 2 learn from more years?
+
+**Question:** production fits stage 2 on every show since 2018. Would older years (from 2006, 2009
+or 2012), or only the most recent ones, predict better? **Test span:** the model replayed from 2006
+(`walk.py 2006 data/walk_2006.pkl`, 7 minutes), each year predicted by a stage 2 fitted on the years
+before with only the window changed (`experiments/train_window.py`, same fold code as
+`backtest_final.py`). The production rule itself needs three years since 2018 to learn from, so it
+can only be judged on 2021 to 2026; the twelve-year comparison (2015 to 2026) uses fixed windows
+instead. Commands: `experiments/README.md`.
+
+**1. Against real production**, each option on its own replay (the replay's start year shifts the
+first-layer inputs a little: production's rule on the 2006 replay scores 1.2808 instead of 1.2797).
+Winner log-loss, lower is better:
+
+| Option | 2021-2023 | 2024-2026 | 2021-2026 | years better | Open age / Masters 2021-2026 |
+|---|---|---|---|---|---|
+| **production: replay and stage 2 from 2018** (before) | 1.4299 | 1.2797 | 1.3386 | | 1.4245 / 1.2313 |
+| replay and stage 2 from 2012 | 1.4343 | 1.2754 | 1.3377 | 2 of 6, one tie | 1.4227 / 1.2315 |
+| replay and stage 2 from 2006 | 1.4331 | 1.2744 | 1.3366 | 3 of 6 | 1.4203 / 1.2321 |
+
+Both lose 2022 to 2024 and win 2025 and 2026; over the six years they gain 0.0009 and 0.0020,
+at or under the 0.002 bar, with top-1 and rank order unchanged.
+
+**2. Twelve years, 2015 to 2026**, all windows on the 2006 replay:
+
+| Window | 2015-2023 | 2024-2026 | 2015-2026 | vs last 6 | vs last 8 |
+|---|---|---|---|---|---|
+| last 3 years | 1.5985 | 1.2906 | 1.4624 | +0.0066, 5 of 12 | |
+| last 4 years | 1.5933 | 1.2905 | 1.4594 | +0.0036, 3 of 12 | |
+| last 6 years | 1.5937 | 1.2819 | 1.4558 | | +0.0061, 4 of 12 |
+| last 8 years | 1.5863 | 1.2775 | 1.4498 | -0.0061, 8 of 12 | |
+| everything from 2006 | 1.5841 | 1.2744 | 1.4472 | -0.0086, 9 of 12 | -0.0026, 6 of 12 |
+| everything from 2009 | 1.5942 | 1.2752 | 1.4531 | -0.0027, 6 of 12 | +0.0034, 6 of 12 |
+| everything from 2012 | 1.5948 | 1.2757 | 1.4537 | -0.0021, 7 of 12 | +0.0040, 5 of 12 |
+
+* **Short windows lose:** 3, 4 or 6 years are worse than 8. Stage 2 needs several years.
+* **Against 6 years, more history wins clearly**, but 6 years is not what production has: it has
+  learned from 8 years for 2026 and gains one every year. Against 8 years, everything from 2006 gains
+  0.0026 but in only 6 of 12 years, and from 2009 or 2012 is worse.
+* So the extra old years help a short window and add little to a window as long as production's.
+* The side finding (1.2754 against 1.2797) is the 2025 and 2026 half of a swing that runs the other
+  way in 2022 to 2024.
+
+Production keeps learning from 2018 on.
 
 ## What the data says about bodybuilding
 
